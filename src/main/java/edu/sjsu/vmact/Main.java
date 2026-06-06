@@ -89,8 +89,8 @@ public class Main {
             List.of(new KeywordDetector()), 
             new NoOpCorrelator(), 
             List.of(
-                new ConsoleReporter(), 
-                new CsvReporter()
+                new CsvReporter(),
+                new ConsoleReporter() 
             )
         );
 
