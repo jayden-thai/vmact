@@ -2,6 +2,14 @@ package edu.sjsu.vmact;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+
+import edu.sjsu.vmact.correlate.NoOpCorrelator;
+import edu.sjsu.vmact.detect.NoOpDetector;
+import edu.sjsu.vmact.extract.AsciiStringExtractor;
+import edu.sjsu.vmact.pipeline.ScanConfig;
+import edu.sjsu.vmact.pipeline.ScanPipeline;
+import edu.sjsu.vmact.report.ConsoleReporter;
 
 public class Main {
     public static void main(String[] args) {
@@ -72,6 +80,22 @@ public class Main {
         System.out.println("Input file: " + inputFile);
         System.out.println("Keywords file: " + keywordsFile);
         System.out.println("Output directory: " + outputDir);
+
+        ScanConfig config = new ScanConfig(inputFile, keywordsFile, outputDir);
+        
+        ScanPipeline pipeline = new ScanPipeline(config, 
+            List.of(new AsciiStringExtractor()), 
+            List.of(new NoOpDetector()), 
+            new NoOpCorrelator(), 
+            List.of(new ConsoleReporter())
+        );
+
+        try {
+            pipeline.run();
+        } catch (Exception e) {
+            System.err.println("Scan failed: " + e.getMessage());
+            System.exit(1);
+        }
     }
 
     private static void validateScanInputs(Path inputFile, Path keywordsFile, Path outputDir) {

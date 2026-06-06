@@ -1,0 +1,54 @@
+package edu.sjsu.vmact.pipeline;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import edu.sjsu.vmact.correlate.Correlator;
+import edu.sjsu.vmact.detect.Detector;
+import edu.sjsu.vmact.extract.Extractor;
+import edu.sjsu.vmact.model.Artifact;
+import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.report.Reporter;
+
+public class ScanPipeline {
+    private final ScanConfig config;
+    private final List<Extractor> extractors;
+    private final List<Detector> detectors;
+    private final Correlator correlator;
+    private final List<Reporter> reporters;
+
+    public ScanPipeline(
+        ScanConfig config,
+        List<Extractor> extractors,
+        List<Detector> detectors,
+        Correlator correlator,
+        List<Reporter> reporters
+    ) {
+        this.config = config;
+        this.extractors = extractors;
+        this.detectors = detectors;
+        this.correlator = correlator;
+        this.reporters = reporters;
+    }
+
+    public void run() throws Exception {
+        System.out.println("Starting scan pipeline...");
+
+        List<Artifact> artifacts = new ArrayList<>();
+
+        for(Extractor extractor : extractors) {
+            List<Artifact> extractedArtifacts = extractor.extract(config);
+            artifacts.addAll(extractedArtifacts);
+        }
+
+        for (Detector detector : detectors) {
+            artifacts = detector.detect(artifacts, config);
+        }
+
+        List<Cluster> clusters = correlator.correlate(artifacts, config);
+
+        for (Reporter reporter : reporters) {
+            reporter.report(artifacts, clusters, config);
+        }
+    }
+}
