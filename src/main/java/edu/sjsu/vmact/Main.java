@@ -5,7 +5,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import edu.sjsu.vmact.correlate.NoOpCorrelator;
-import edu.sjsu.vmact.detect.NoOpDetector;
+import edu.sjsu.vmact.detect.KeywordDetector;
 import edu.sjsu.vmact.extract.AsciiStringExtractor;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
@@ -85,7 +85,7 @@ public class Main {
         
         ScanPipeline pipeline = new ScanPipeline(config, 
             List.of(new AsciiStringExtractor()), 
-            List.of(new NoOpDetector()), 
+            List.of(new KeywordDetector()), 
             new NoOpCorrelator(), 
             List.of(new ConsoleReporter())
         );
