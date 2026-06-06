@@ -15,7 +15,7 @@ public class Cluster {
         return label;
     }
 
-    public List<Artifact> geArtifacts() {
+    public List<Artifact> getArtifacts() {
         return artifacts;
     }
 
