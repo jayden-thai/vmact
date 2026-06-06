@@ -20,12 +20,14 @@ public class KeywordDetector implements Detector{
 
             for (String keyword : keywords) {
                 if (value.contains(keyword)) {
-                    outputArtifacts.add(new Artifact(ArtifactType.KEYWORD_HIT, 
+                    outputArtifacts.add(new Artifact(
+                        artifact.getId(),
+                        ArtifactType.KEYWORD_HIT, 
                         keyword, 
                         "keyword-detector", 
                         artifact.getEncoding(), 
                         artifact.getOffset(), 
-                        artifact.getValue(), 
+                        value, 
                         0.90
                     ));
                 }

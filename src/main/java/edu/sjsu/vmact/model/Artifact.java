@@ -1,6 +1,10 @@
 package edu.sjsu.vmact.model;
 
+import java.util.UUID;
+
 public class Artifact {
+    private final String id;
+    private final String parentArtifactId;
     private final ArtifactType type;
     private final String value;
     private final String sourceName;
@@ -9,7 +13,63 @@ public class Artifact {
     private final double confidence;
     private final long offset;
 
-    public Artifact(ArtifactType type, String value, String sourceName, String encoding, long offset, String context, double confidence) {
+    public Artifact(
+            ArtifactType type,
+            String value,
+            String sourceName,
+            String encoding,
+            long offset,
+            String context,
+            double confidence
+    ) {
+        this(
+                UUID.randomUUID().toString(),
+                "",
+                type,
+                value,
+                sourceName,
+                encoding,
+                offset,
+                context,
+                confidence
+        );
+    }
+    public Artifact(
+            String parentArtifactId,
+            ArtifactType type,
+            String value,
+            String sourceName,
+            String encoding,
+            long offset,
+            String context,
+            double confidence
+    ) {
+        this(
+                UUID.randomUUID().toString(),
+                parentArtifactId,
+                type,
+                value,
+                sourceName,
+                encoding,
+                offset,
+                context,
+                confidence
+        );
+    }
+
+    public Artifact(
+            String id,
+            String parentArtifactId,
+            ArtifactType type,
+            String value,
+            String sourceName,
+            String encoding,
+            long offset,
+            String context,
+            double confidence
+    ) {
+        this.id = id;
+        this.parentArtifactId = parentArtifactId;
         this.type = type;
         this.value = value;
         this.sourceName = sourceName;
@@ -17,6 +77,14 @@ public class Artifact {
         this.offset = offset;
         this.context = context;
         this.confidence = confidence;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public String getParentArtifactId() {
+        return parentArtifactId;
     }
 
     public ArtifactType getType() {
@@ -50,7 +118,9 @@ public class Artifact {
     @Override
     public String toString() {
         return "Artifact{" +
-                "type=" + type +
+                "id='" + id + '\'' +
+                ", parentArtifactId='" + parentArtifactId + '\'' +
+                ", type=" + type +
                 ", value='" + value + '\'' +
                 ", sourceName='" + sourceName + '\'' +
                 ", encoding='" + encoding + '\'' +
