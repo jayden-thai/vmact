@@ -10,6 +10,7 @@ import edu.sjsu.vmact.extract.AsciiStringExtractor;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
 import edu.sjsu.vmact.report.ConsoleReporter;
+import edu.sjsu.vmact.report.CsvReporter;
 
 public class Main {
     public static void main(String[] args) {
@@ -87,7 +88,10 @@ public class Main {
             List.of(new AsciiStringExtractor()), 
             List.of(new KeywordDetector()), 
             new NoOpCorrelator(), 
-            List.of(new ConsoleReporter())
+            List.of(
+                new ConsoleReporter(), 
+                new CsvReporter()
+            )
         );
 
         try {
