@@ -4,3 +4,8 @@ target/
 .vscode/
 .DS_Store
 testdata/
+out/
+*.mem
+*.raw
+*.dmp
+*.vmem
