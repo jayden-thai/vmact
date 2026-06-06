@@ -115,6 +115,10 @@ public class Artifact {
         return confidence;
     }
 
+    public boolean isDerived() {
+        return parentArtifactId != null && !parentArtifactId.isBlank();
+    }
+
     @Override
     public String toString() {
         return "Artifact{" +
