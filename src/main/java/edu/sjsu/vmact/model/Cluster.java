@@ -6,18 +6,27 @@ import java.util.UUID;
 public class Cluster {
     private final String id;
     private final String label;
+    private final String rootArtifactId;
+    private final String rootValue;
+    private final String clusterTypes;
     private final List<Artifact> artifacts;
     private final double confidence;
     private final String explanation;
 
     public Cluster(
         String label, 
+        String rootArtifactId,
+        String rootValue,
+        String clusterTypes,
         List<Artifact> artifacts, 
         double confidence, 
         String explanation
     ) {
         this.id = UUID.randomUUID().toString();
         this.label = label;
+        this.rootArtifactId = rootArtifactId;
+        this.rootValue = rootValue;
+        this.clusterTypes = clusterTypes;
         this.artifacts = artifacts;
         this.confidence = confidence;
         this.explanation = explanation;
@@ -29,6 +38,18 @@ public class Cluster {
 
     public String getLabel() {
         return label;
+    }
+
+    public String getRootArtifactId() {
+        return rootArtifactId;
+    }
+
+    public String getRootValue() {
+        return rootValue;
+    }
+
+    public String getClusterTypes() {
+        return clusterTypes;
     }
 
     public List<Artifact> getArtifacts() {
@@ -47,8 +68,11 @@ public class Cluster {
     public String toString() {
         return "Cluster{" +
                 "id='" + id + '\'' +
-                "label='" + label + '\'' +
-                ", artifactCounter=" + artifacts.size() +
+                ", label='" + label + '\'' +
+                ", rootArtifactId='" + rootArtifactId + '\'' +
+                ", rootValue='" + rootValue + '\'' +
+                ", clusterTypes='" + clusterTypes + '\'' +
+                ", artifactCount=" + artifacts.size() +
                 ", confidence=" + confidence +
                 ", explanation='" + explanation + '\'' +
                 '}';

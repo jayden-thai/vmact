@@ -51,7 +51,7 @@ public class CsvReporter implements Reporter{
 
     private void writeClustersCsv(List<Cluster> clusters, Path outputpath) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(outputpath)) {
-            writer.write("id,label,confidence,artifactCount,artifactIds,explanation");
+            writer.write("id,label,confidence,artifactCount,rootArtifactId,rootValue,clusterTypes,artifactIds,explanation");
             writer.newLine();
 
             for (Cluster cluster : clusters) {
@@ -62,6 +62,12 @@ public class CsvReporter implements Reporter{
                 writer.write(formatConfidence(cluster.getConfidence()));
                 writer.write(",");
                 writer.write(Integer.toString(cluster.getArtifacts().size()));
+                writer.write(",");
+                writer.write(csv(cluster.getRootArtifactId()));
+                writer.write(",");
+                writer.write(csv(cluster.getRootValue()));
+                writer.write(",");
+                writer.write(csv(cluster.getClusterTypes()));
                 writer.write(",");
                 writer.write(csv(joinArtifactIds(cluster.getArtifacts())));
                 writer.write(",");

@@ -1,6 +1,7 @@
 package edu.sjsu.vmact.correlate;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +48,9 @@ public class SimpleRuleCorrelator implements Correlator{
 
                 clusters.add(new Cluster(
                     label, 
+                    rootArtifact.getId(),
+                    rootArtifact.getValue(),
+                    buildClusterTypes(clusterArtifacts),
                     clusterArtifacts,
                     confidence,
                     explanation
@@ -55,6 +59,22 @@ public class SimpleRuleCorrelator implements Correlator{
         }
 
         return clusters;
+    }
+
+    private String buildClusterTypes(List<Artifact> artifacts) {
+        Set<ArtifactType> types = EnumSet.noneOf(ArtifactType.class);
+
+        for (Artifact artifact : artifacts) {
+            types.add(artifact.getType());
+        }
+
+        List<String> typeNames = new ArrayList<>();
+
+        for (ArtifactType type : types) {
+            typeNames.add(type.name());
+        }
+
+        return String.join(";", typeNames);
     }
 
     private String chooseLabel(List<Artifact> derivedArtifacts) {
