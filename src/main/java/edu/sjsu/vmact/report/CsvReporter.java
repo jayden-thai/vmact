@@ -4,7 +4,9 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
@@ -39,7 +41,7 @@ public class CsvReporter implements Reporter{
                 writer.write(",");
                 writer.write(Long.toString(artifact.getOffset()));
                 writer.write(",");
-                writer.write(Double.toString(artifact.getConfidence()));
+                writer.write(formatConfidence(artifact.getConfidence()));
                 writer.write(",");
                 writer.write(csv(artifact.getContext()));
                 writer.newLine();
@@ -49,13 +51,21 @@ public class CsvReporter implements Reporter{
 
     private void writeClustersCsv(List<Cluster> clusters, Path outputpath) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(outputpath)) {
-            writer.write("label,artifactCount");
+            writer.write("id,label,confidence,artifactCount,artifactIds,explanation");
             writer.newLine();
 
             for (Cluster cluster : clusters) {
+                writer.write(csv(cluster.getId()));
+                writer.write(",");
                 writer.write(csv(cluster.getLabel()));
                 writer.write(",");
-                writer.write((Integer.toString(cluster.getArtifacts().size())));
+                writer.write(formatConfidence(cluster.getConfidence()));
+                writer.write(",");
+                writer.write(Integer.toString(cluster.getArtifacts().size()));
+                writer.write(",");
+                writer.write(csv(joinArtifactIds(cluster.getArtifacts())));
+                writer.write(",");
+                writer.write(csv(cluster.getExplanation()));
                 writer.newLine();
             }
         }
@@ -68,5 +78,19 @@ public class CsvReporter implements Reporter{
         String escaped = value.replace("\"", "\"\"");
 
         return "\"" + escaped + "\"";
+    }
+
+    private String formatConfidence(double confidence) {
+        return String.format(Locale.US, "%.2f", confidence);
+    }
+
+    private String joinArtifactIds(List<Artifact> artifacts) {
+        List<String> ids = new ArrayList<>();
+
+        for (Artifact artifact : artifacts) {
+            ids.add(artifact.getId());
+        }
+
+        return String.join(";", ids);
     }
 }

@@ -4,7 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-import edu.sjsu.vmact.correlate.NoOpCorrelator;
+import edu.sjsu.vmact.correlate.SimpleRuleCorrelator;
 import edu.sjsu.vmact.detect.KeywordDetector;
 import edu.sjsu.vmact.detect.RegexArtifactDetector;
 import edu.sjsu.vmact.extract.AsciiStringExtractor;
@@ -91,7 +91,7 @@ public class Main {
                 new KeywordDetector(),
                 new RegexArtifactDetector()
             ), 
-            new NoOpCorrelator(), 
+            new SimpleRuleCorrelator(), 
             List.of(
                 new CsvReporter(),
                 new ConsoleReporter() 
