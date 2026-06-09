@@ -6,6 +6,7 @@ import java.util.List;
 
 import edu.sjsu.vmact.correlate.NoOpCorrelator;
 import edu.sjsu.vmact.detect.KeywordDetector;
+import edu.sjsu.vmact.detect.RegexArtifactDetector;
 import edu.sjsu.vmact.extract.AsciiStringExtractor;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
@@ -86,7 +87,10 @@ public class Main {
         
         ScanPipeline pipeline = new ScanPipeline(config, 
             List.of(new AsciiStringExtractor()), 
-            List.of(new KeywordDetector()), 
+            List.of(
+                new KeywordDetector(),
+                new RegexArtifactDetector()
+            ), 
             new NoOpCorrelator(), 
             List.of(
                 new CsvReporter(),
