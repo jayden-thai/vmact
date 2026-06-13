@@ -35,7 +35,7 @@ public class AsciiStringExtractor implements Extractor{
 
                     currentString.append((char) b);
                 } else {
-                    flushStringIfLongEnough(artifacts, currentString, stringStartOffset);
+                    flushStringIfLongEnough(config, artifacts, currentString, stringStartOffset);
                     currentString.setLength(0);
                     stringStartOffset = -1;
                 }
@@ -43,7 +43,7 @@ public class AsciiStringExtractor implements Extractor{
                 currentOffset++;
             }
 
-            flushStringIfLongEnough(artifacts, currentString, stringStartOffset);
+            flushStringIfLongEnough(config, artifacts, currentString, stringStartOffset);
         }
 
         return artifacts;
@@ -55,9 +55,11 @@ public class AsciiStringExtractor implements Extractor{
         return unsignedByte >= 32 && unsignedByte <= 126;
     }
 
-    private  void flushStringIfLongEnough(List<Artifact> artifacts, StringBuilder currentString, long stringStartOffset) {
+    private  void flushStringIfLongEnough(ScanConfig config, List<Artifact> artifacts, StringBuilder currentString, long stringStartOffset) {
         if (currentString.length() >= MIN_STRING_LENGTH) {
             artifacts.add(new Artifact(
+                config.nextArtifactId(),
+                "",
                 ArtifactType.RAW_STRING, 
                 currentString.toString(), 
                 "ascii-extractor", 

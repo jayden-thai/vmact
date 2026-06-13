@@ -14,6 +14,7 @@ public class Cluster {
     private final String explanation;
 
     public Cluster(
+        String id,
         String label, 
         String rootArtifactId,
         String rootValue,
@@ -22,7 +23,7 @@ public class Cluster {
         double confidence, 
         String explanation
     ) {
-        this.id = UUID.randomUUID().toString();
+        this.id = id;
         this.label = label;
         this.rootArtifactId = rootArtifactId;
         this.rootValue = rootValue;

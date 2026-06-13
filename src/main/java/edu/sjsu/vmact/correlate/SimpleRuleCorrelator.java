@@ -47,6 +47,7 @@ public class SimpleRuleCorrelator implements Correlator{
                 String explanation = buildExplanation(rootArtifact, derivedArtifacts);
 
                 clusters.add(new Cluster(
+                    config.nextClusterId(),
                     label, 
                     rootArtifact.getId(),
                     rootArtifact.getValue(),

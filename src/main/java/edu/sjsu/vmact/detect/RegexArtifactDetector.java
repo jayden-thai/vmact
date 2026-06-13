@@ -33,10 +33,10 @@ public class RegexArtifactDetector implements Detector{
         for (Artifact artifact : inputArtifacts) {
             // only checks root artifacts to avoid needless artifact inflation
             if (artifact.getType() == ArtifactType.RAW_STRING) {
-                detectPattern(outputArtifacts, artifact, EMAIL_PATTERN, ArtifactType.EMAIL, 0.85);
-                detectPattern(outputArtifacts, artifact, URL_PATTERN, ArtifactType.URL, 0.85);
-                detectPattern(outputArtifacts, artifact, FILE_PATH_PATTERN, ArtifactType.FILE_PATH, 0.80);
-                detectPattern(outputArtifacts, artifact, DEVICE_ID_PATTERN, ArtifactType.DEVICE_ID, 0.90);
+                detectPattern(config, outputArtifacts, artifact, EMAIL_PATTERN, ArtifactType.EMAIL, 0.85);
+                detectPattern(config, outputArtifacts, artifact, URL_PATTERN, ArtifactType.URL, 0.85);
+                detectPattern(config, outputArtifacts, artifact, FILE_PATH_PATTERN, ArtifactType.FILE_PATH, 0.80);
+                detectPattern(config, outputArtifacts, artifact, DEVICE_ID_PATTERN, ArtifactType.DEVICE_ID, 0.90);
             }
         }
 
@@ -44,6 +44,7 @@ public class RegexArtifactDetector implements Detector{
     }
 
     private void detectPattern(
+            ScanConfig config,
             List<Artifact> outputArtifacts,
             Artifact parentArtifact,
             Pattern pattern,
@@ -56,6 +57,7 @@ public class RegexArtifactDetector implements Detector{
             String matchedValue = matcher.group();
 
             outputArtifacts.add(new Artifact(
+                config.nextArtifactId(),
                 parentArtifact.getId(), 
                 artifactType, 
                 matchedValue, 

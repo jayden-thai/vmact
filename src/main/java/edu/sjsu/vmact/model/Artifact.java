@@ -13,49 +13,6 @@ public class Artifact {
     private final double confidence;
     private final long offset;
 
-    public Artifact(
-            ArtifactType type,
-            String value,
-            String sourceName,
-            String encoding,
-            long offset,
-            String context,
-            double confidence
-    ) {
-        this(
-                UUID.randomUUID().toString(),
-                "",
-                type,
-                value,
-                sourceName,
-                encoding,
-                offset,
-                context,
-                confidence
-        );
-    }
-    public Artifact(
-            String parentArtifactId,
-            ArtifactType type,
-            String value,
-            String sourceName,
-            String encoding,
-            long offset,
-            String context,
-            double confidence
-    ) {
-        this(
-                UUID.randomUUID().toString(),
-                parentArtifactId,
-                type,
-                value,
-                sourceName,
-                encoding,
-                offset,
-                context,
-                confidence
-        );
-    }
 
     public Artifact(
             String id,
