@@ -7,7 +7,10 @@ public class Artifact {
     private final String parentArtifactId;
     private final ArtifactType type;
     private final String value;
+    private final String sourceId;
     private final String sourceName;
+    private final String sourceType;
+    private final String producerName;
     private final String encoding;
     private final String context;
     private final double confidence;
@@ -19,7 +22,10 @@ public class Artifact {
             String parentArtifactId,
             ArtifactType type,
             String value,
+            String sourceId,
             String sourceName,
+            String sourceType,
+            String producerName,
             String encoding,
             long offset,
             String context,
@@ -29,7 +35,10 @@ public class Artifact {
         this.parentArtifactId = parentArtifactId;
         this.type = type;
         this.value = value;
+        this.sourceId = sourceId;
         this.sourceName = sourceName;
+        this.sourceType = sourceType;
+        this.producerName = producerName;
         this.encoding = encoding;
         this.offset = offset;
         this.context = context;
@@ -52,8 +61,20 @@ public class Artifact {
         return value;
     }
 
+    public String getSourceId() {
+        return sourceId;
+    }
+
     public String getSourceName() {
         return sourceName;
+    }
+
+    public String getSourceType() {
+        return sourceType;
+    }
+
+    public String getProducerName() {
+        return producerName;
     }
 
     public String getEncoding() {
@@ -84,6 +105,8 @@ public class Artifact {
                 ", type=" + type +
                 ", value='" + value + '\'' +
                 ", sourceName='" + sourceName + '\'' +
+                ", sourceType='" + sourceType + '\'' +
+                ", producerName='" + producerName + '\'' +
                 ", encoding='" + encoding + '\'' +
                 ", offset=" + offset +
                 ", confidence=" + confidence +

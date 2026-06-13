@@ -61,11 +61,15 @@ public class RegexArtifactDetector implements Detector{
                 parentArtifact.getId(), 
                 artifactType, 
                 matchedValue, 
+                config.getSourceId(),
+                config.getSourceName(),
+                config.getSourceType(),
                 "regex-detector", 
                 parentArtifact.getEncoding(),
                 calculateDerivedOffset(parentArtifact, matcher.start()), 
                 parentArtifact.getValue(), 
-                confidence));
+                confidence
+            ));
         }
     }
 

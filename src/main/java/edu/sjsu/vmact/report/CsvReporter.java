@@ -23,7 +23,7 @@ public class CsvReporter implements Reporter{
 
     private void writeArtifactsCsv(List<Artifact> artifacts, Path outputPath) throws IOException{
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
-            writer.write("id,parentArtifactId,type,value,sourceName,encoding,offset,confidence,context");
+            writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,encoding,offset,confidence,context");
             writer.newLine();
 
             for (Artifact artifact : artifacts) {
@@ -35,7 +35,11 @@ public class CsvReporter implements Reporter{
                 writer.write(",");
                 writer.write(csv(artifact.getValue()));
                 writer.write(",");
+                writer.write(csv(artifact.getSourceId()));
+                writer.write(",");
                 writer.write(csv(artifact.getSourceName()));
+                writer.write(",");
+                writer.write(csv(artifact.getSourceType()));
                 writer.write(",");
                 writer.write(csv(artifact.getEncoding()));
                 writer.write(",");
