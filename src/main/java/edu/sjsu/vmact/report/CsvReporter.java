@@ -39,7 +39,7 @@ public class CsvReporter implements Reporter{
                 writer.write(",");
                 writer.write(csv(artifact.getSourceName()));
                 writer.write(",");
-                writer.write(csv(artifact.getSourceType()));
+                writer.write(csv(artifact.getSourceType().name()));
                 writer.write(",");
                 writer.write(csv(artifact.getEncoding()));
                 writer.write(",");

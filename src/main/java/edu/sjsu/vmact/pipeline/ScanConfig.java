@@ -1,34 +1,30 @@
 package edu.sjsu.vmact.pipeline;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
+import edu.sjsu.vmact.model.EvidenceSource;
 import edu.sjsu.vmact.model.IdGenerator;
+import edu.sjsu.vmact.model.SourceType;
 
 public class ScanConfig {
-    private final Path inputFile;
     private final Path keywordsFile;
     private final Path outputDir;
 
     private final IdGenerator idGenerator;
 
-    private final String sourceId;
-    private final String sourceName;
-    private final String sourceType;
+    private final List<EvidenceSource> evidenceSources;
 
     public ScanConfig(Path inputFile, Path keywordsFile, Path outputDir) {
-        this.inputFile = inputFile;
         this.keywordsFile = keywordsFile;
         this.outputDir = outputDir;
 
         this.idGenerator = new IdGenerator();
-
-        this.sourceId = nextSourceId();
-        this.sourceName = inputFile.getFileName().toString();
-        this.sourceType = "RAW_MEMORY";
-    }
-
-    public Path getInputFile() {
-        return inputFile;
+        
+        evidenceSources = new ArrayList<>();
+        addEvidenceSource(inputFile, SourceType.RAW_MEMORY);
     }
 
     public Path getKeywordsFile() {
@@ -39,16 +35,48 @@ public class ScanConfig {
         return outputDir;
     }
 
-    public String getSourceId() {
-        return sourceId;
+    public EvidenceSource addEvidenceSource(Path path, SourceType type) {
+        return addEvidenceSource(
+            path.getFileName().toString(), 
+            path, 
+            type
+        );
     }
 
-    public String getSourceName() {
-        return sourceName;
+    public EvidenceSource addEvidenceSource(String name, Path path, SourceType type) {
+        EvidenceSource source = new EvidenceSource(
+            nextSourceId(), 
+            name,
+            path, 
+            type
+        );
+
+        evidenceSources.add(source);
+        return source;
     }
 
-    public String getSourceType() {
-        return sourceType;
+    public List<EvidenceSource> getEvidenceSources() {
+        return Collections.unmodifiableList(evidenceSources);
+    }
+
+    public EvidenceSource getPrimaryEvidenceSource() {
+        return evidenceSources.get(0);
+    }
+
+    public String getPrimarySourceId() {
+        return getPrimaryEvidenceSource().getId();
+    }
+
+    public String getPrimarySourceName() {
+        return getPrimaryEvidenceSource().getName();
+    }
+
+    public Path getPrimarySourcePath() {
+        return getPrimaryEvidenceSource().getPath();
+    }
+
+    public SourceType getPrimarySourceType() {
+        return getPrimaryEvidenceSource().getType();
     }
 
     public String nextArtifactId() {
@@ -59,7 +87,7 @@ public class ScanConfig {
         return idGenerator.nextClusterId();
     }
 
-    public String nextSourceId() {
+    private String nextSourceId() {
         return idGenerator.nextSourceId();
     }
 }

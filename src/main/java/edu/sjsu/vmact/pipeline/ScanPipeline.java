@@ -8,6 +8,7 @@ import edu.sjsu.vmact.detect.Detector;
 import edu.sjsu.vmact.extract.Extractor;
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.model.EvidenceSource;
 import edu.sjsu.vmact.report.Reporter;
 
 public class ScanPipeline {
@@ -35,10 +36,15 @@ public class ScanPipeline {
         System.out.println("Starting scan pipeline...");
 
         List<Artifact> artifacts = new ArrayList<>();
+        List<EvidenceSource> evidenceSources = config.getEvidenceSources();
 
-        for(Extractor extractor : extractors) {
-            List<Artifact> extractedArtifacts = extractor.extract(config);
-            artifacts.addAll(extractedArtifacts);
+        for (EvidenceSource source : evidenceSources) {
+            for(Extractor extractor : extractors) {
+                if (extractor.supports(source)) {
+                    List<Artifact> extractedArtifacts = extractor.extract(source, config);
+                    artifacts.addAll(extractedArtifacts);
+                }
+            }
         }
 
         for (Detector detector : detectors) {

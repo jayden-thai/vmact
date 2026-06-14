@@ -9,7 +9,7 @@ public class Artifact {
     private final String value;
     private final String sourceId;
     private final String sourceName;
-    private final String sourceType;
+    private final SourceType sourceType;
     private final String producerName;
     private final String encoding;
     private final String context;
@@ -24,7 +24,7 @@ public class Artifact {
             String value,
             String sourceId,
             String sourceName,
-            String sourceType,
+            SourceType sourceType,
             String producerName,
             String encoding,
             long offset,
@@ -69,7 +69,7 @@ public class Artifact {
         return sourceName;
     }
 
-    public String getSourceType() {
+    public SourceType getSourceType() {
         return sourceType;
     }
 

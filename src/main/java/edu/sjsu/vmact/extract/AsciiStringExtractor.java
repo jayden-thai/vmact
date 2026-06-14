@@ -9,16 +9,24 @@ import java.util.List;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
+import edu.sjsu.vmact.model.EvidenceSource;
+import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class AsciiStringExtractor implements Extractor{
     private static final int MIN_STRING_LENGTH = 4;
 
     @Override
-    public List<Artifact> extract(ScanConfig config) throws IOException {
+    public boolean supports(EvidenceSource source) {
+        return source.getType() == SourceType.RAW_MEMORY 
+                || source.getType() == SourceType.PROCESS_DUMP;
+    }
+
+    @Override
+    public List<Artifact> extract(EvidenceSource source, ScanConfig config) throws IOException {
         List<Artifact> artifacts = new ArrayList<>();
 
-        try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(config.getInputFile()))) {
+        try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(source.getPath()))) {
             StringBuilder currentString = new StringBuilder();
 
             long currentOffset = 0;
@@ -35,7 +43,7 @@ public class AsciiStringExtractor implements Extractor{
 
                     currentString.append((char) b);
                 } else {
-                    flushStringIfLongEnough(config, artifacts, currentString, stringStartOffset);
+                    flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
                     currentString.setLength(0);
                     stringStartOffset = -1;
                 }
@@ -43,7 +51,7 @@ public class AsciiStringExtractor implements Extractor{
                 currentOffset++;
             }
 
-            flushStringIfLongEnough(config, artifacts, currentString, stringStartOffset);
+            flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
         }
 
         return artifacts;
@@ -55,16 +63,16 @@ public class AsciiStringExtractor implements Extractor{
         return unsignedByte >= 32 && unsignedByte <= 126;
     }
 
-    private  void flushStringIfLongEnough(ScanConfig config, List<Artifact> artifacts, StringBuilder currentString, long stringStartOffset) {
+    private  void flushStringIfLongEnough(EvidenceSource source, ScanConfig config, List<Artifact> artifacts, StringBuilder currentString, long stringStartOffset) {
         if (currentString.length() >= MIN_STRING_LENGTH) {
             artifacts.add(new Artifact(
                 config.nextArtifactId(),
                 "",
                 ArtifactType.RAW_STRING, 
                 currentString.toString(), 
-                config.getSourceId(),
-                config.getSourceName(),
-                config.getSourceType(),
+                source.getId(),
+                source.getName(),
+                source.getType(),
                 "ascii-extractor", 
                 "ASCII", 
                 stringStartOffset, 
