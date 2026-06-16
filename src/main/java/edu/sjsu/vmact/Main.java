@@ -8,6 +8,7 @@ import edu.sjsu.vmact.correlate.SimpleRuleCorrelator;
 import edu.sjsu.vmact.detect.KeywordDetector;
 import edu.sjsu.vmact.detect.RegexArtifactDetector;
 import edu.sjsu.vmact.extract.AsciiStringExtractor;
+import edu.sjsu.vmact.extract.Utf16LeStringExtractor;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
 import edu.sjsu.vmact.report.ConsoleReporter;
@@ -86,7 +87,10 @@ public class Main {
         ScanConfig config = new ScanConfig(inputFile, keywordsFile, outputDir);
         
         ScanPipeline pipeline = new ScanPipeline(config, 
-            List.of(new AsciiStringExtractor()), 
+            List.of(
+                new AsciiStringExtractor(),
+                new Utf16LeStringExtractor()
+            ), 
             List.of(
                 new KeywordDetector(),
                 new RegexArtifactDetector()
