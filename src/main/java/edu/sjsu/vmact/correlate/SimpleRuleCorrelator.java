@@ -7,10 +7,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
 import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.model.RuleId;
+import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class SimpleRuleCorrelator implements Correlator{
@@ -54,6 +57,10 @@ public class SimpleRuleCorrelator implements Correlator{
                     rootArtifact.getId(),
                     rootArtifact.getValue(),
                     buildClusterTypes(clusterArtifacts),
+                    buildSourceNames(clusterArtifacts),
+                    buildSourceTypes(clusterArtifacts),
+                    buildProducerNames(clusterArtifacts),
+                    List.of(RuleId.CLUSTER_PARENT_CHILD),
                     clusterArtifacts,
                     confidence,
                     explanation
@@ -78,6 +85,36 @@ public class SimpleRuleCorrelator implements Correlator{
         }
 
         return String.join(";", typeNames);
+    }
+
+    private List<String> buildSourceNames(List<Artifact> artifacts) {
+        Set<String> sourceNames = new TreeSet<>();
+
+        for (Artifact artifact : artifacts) {
+            sourceNames.add(artifact.getSourceName());
+        }
+
+        return new ArrayList<>(sourceNames);
+    }
+
+    private List<String> buildProducerNames(List<Artifact> artifacts) {
+        Set<String> producerNames = new TreeSet<>();
+
+        for (Artifact artifact : artifacts) {
+            producerNames.add(artifact.getProducerName());
+        }
+
+        return new ArrayList<>(producerNames);
+    }
+
+    private List<SourceType> buildSourceTypes(List<Artifact> artifacts) {
+        Set<SourceType> sourceTypes = EnumSet.noneOf(SourceType.class);
+
+        for (Artifact artifact : artifacts) {
+            sourceTypes.add(artifact.getSourceType());
+        }
+
+        return new ArrayList<>(sourceTypes);
     }
 
     private String chooseLabel(List<Artifact> derivedArtifacts) {

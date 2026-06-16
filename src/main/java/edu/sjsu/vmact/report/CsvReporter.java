@@ -10,6 +10,8 @@ import java.util.Locale;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.model.RuleId;
+import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class CsvReporter implements Reporter{
@@ -55,7 +57,7 @@ public class CsvReporter implements Reporter{
 
     private void writeClustersCsv(List<Cluster> clusters, Path outputpath) throws IOException {
         try (BufferedWriter writer = Files.newBufferedWriter(outputpath)) {
-            writer.write("id,label,confidence,artifactCount,anchorArtifactId,anchorValue,rootArtifactIds,clusterTypes,artifactIds,explanation");
+            writer.write("id,label,confidence,artifactCount,anchorArtifactId,anchorValue,rootArtifactIds,clusterTypes,sourceNames,sourceTypes,producerNames,ruleIds,artifactIds,explanation");
             writer.newLine();
 
             for (Cluster cluster : clusters) {
@@ -74,6 +76,14 @@ public class CsvReporter implements Reporter{
                 writer.write(csv(joinStrings(cluster.getRootArtifactIds())));
                 writer.write(",");
                 writer.write(csv(cluster.getClusterTypes()));
+                writer.write(",");
+                writer.write(csv(joinStrings(cluster.getSourceNames())));
+                writer.write(",");
+                writer.write(csv(joinSourceTypes(cluster.getSourceTypes())));
+                writer.write(",");
+                writer.write(csv(joinStrings(cluster.getProducerNames())));
+                writer.write(",");
+                writer.write(csv(joinRuleIds(cluster.getRuleIds())));
                 writer.write(",");
                 writer.write(csv(joinArtifactIds(cluster.getArtifacts())));
                 writer.write(",");
@@ -108,5 +118,25 @@ public class CsvReporter implements Reporter{
 
     private String joinStrings(List<String> values) {
         return String.join(";", values);
+    }
+
+    private String joinSourceTypes(List<SourceType> sourceTypes) {
+        List<String> names = new ArrayList<>();
+
+        for (SourceType sourceType : sourceTypes) {
+            names.add(sourceType.name());
+        }
+
+        return String.join(";", names);
+    }
+
+    private String joinRuleIds(List<RuleId> ruleIds) {
+        List<String> names = new ArrayList<>();
+
+        for (RuleId ruleId : ruleIds) {
+            names.add(ruleId.name());
+        }
+
+        return String.join(";", names);
     }
 }
