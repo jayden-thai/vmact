@@ -5,8 +5,9 @@ import java.util.List;
 public class Cluster {
     private final String id;
     private final String label;
-    private final String rootArtifactId;
-    private final String rootValue;
+    private final List<String> rootArtifactIds;
+    private final String anchorArtifactId;
+    private final String anchorValue;
     private final String clusterTypes;
     private final List<Artifact> artifacts;
     private final double confidence;
@@ -15,8 +16,9 @@ public class Cluster {
     public Cluster(
         String id,
         String label, 
-        String rootArtifactId,
-        String rootValue,
+        List<String> rootArtifactIds,
+        String anchorArtifactId,
+        String anchorValue,
         String clusterTypes,
         List<Artifact> artifacts, 
         double confidence, 
@@ -24,8 +26,9 @@ public class Cluster {
     ) {
         this.id = id;
         this.label = label;
-        this.rootArtifactId = rootArtifactId;
-        this.rootValue = rootValue;
+        this.rootArtifactIds = rootArtifactIds;
+        this.anchorArtifactId = anchorArtifactId;
+        this.anchorValue = anchorValue;
         this.clusterTypes = clusterTypes;
         this.artifacts = artifacts;
         this.confidence = confidence;
@@ -40,12 +43,16 @@ public class Cluster {
         return label;
     }
 
-    public String getRootArtifactId() {
-        return rootArtifactId;
+    public List<String> getRootArtifactIds() {
+        return rootArtifactIds;
     }
 
-    public String getRootValue() {
-        return rootValue;
+    public String getAnchorArtifactId() {
+        return anchorArtifactId;
+    }
+
+    public String getAnchorValue() {
+        return anchorValue;
     }
 
     public String getClusterTypes() {
@@ -69,8 +76,9 @@ public class Cluster {
         return "Cluster{" +
                 "id='" + id + '\'' +
                 ", label='" + label + '\'' +
-                ", rootArtifactId='" + rootArtifactId + '\'' +
-                ", rootValue='" + rootValue + '\'' +
+                ", rootArtifactIds=" + rootArtifactIds +
+                ", anchorArtifactId'=" + anchorArtifactId + '\'' +
+                ", anchorValue='" + anchorValue + '\'' +
                 ", clusterTypes='" + clusterTypes + '\'' +
                 ", artifactCount=" + artifacts.size() +
                 ", confidence=" + confidence +

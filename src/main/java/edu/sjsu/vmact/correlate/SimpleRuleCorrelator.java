@@ -45,10 +45,12 @@ public class SimpleRuleCorrelator implements Correlator{
                 String label = chooseLabel(derivedArtifacts);
                 double confidence = calculateConfidence(derivedArtifacts);
                 String explanation = buildExplanation(rootArtifact, derivedArtifacts);
+                List<String> rootArtifactIds = List.of(rootArtifact.getId());
 
                 clusters.add(new Cluster(
                     config.nextClusterId(),
                     label, 
+                    rootArtifactIds,
                     rootArtifact.getId(),
                     rootArtifact.getValue(),
                     buildClusterTypes(clusterArtifacts),
