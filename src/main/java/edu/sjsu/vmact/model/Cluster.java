@@ -1,7 +1,6 @@
 package edu.sjsu.vmact.model;
 
 import java.util.List;
-import java.util.UUID;
 
 public class Cluster {
     private final String id;

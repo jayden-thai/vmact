@@ -1,7 +1,5 @@
 package edu.sjsu.vmact.model;
 
-import java.util.UUID;
-
 public class Artifact {
     private final String id;
     private final String parentArtifactId;
