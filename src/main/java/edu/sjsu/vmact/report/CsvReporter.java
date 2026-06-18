@@ -7,25 +7,34 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.model.Hypothesis;
 import edu.sjsu.vmact.model.RuleId;
 import edu.sjsu.vmact.model.SourceType;
+import edu.sjsu.vmact.model.Subclaim;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class CsvReporter implements Reporter{
     @Override
-    public void report(List<Artifact> artifacts, List<Cluster> clusters, ScanConfig config) throws IOException {
+    public void report(List<Artifact> artifacts, 
+        List<Cluster> clusters, 
+        List<Hypothesis> hypotheses, 
+        ScanConfig config
+    ) throws IOException {
         Files.createDirectories(config.getOutputDir());
 
         writeArtifactsCsv(artifacts, config.getOutputDir().resolve("artifacts.csv"));
         writeClustersCsv(clusters, config.getOutputDir().resolve("clusters.csv"));
+        writeHypothesesCsv(hypotheses, config.getOutputDir().resolve("hypotheses.csv"));
     }
 
     private void writeArtifactsCsv(List<Artifact> artifacts, Path outputPath) throws IOException{
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
-            writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,encoding,offset,confidence,context");
+            writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,producerName,encoding,offset,confidence,context");
             writer.newLine();
 
             for (Artifact artifact : artifacts) {
@@ -42,6 +51,8 @@ public class CsvReporter implements Reporter{
                 writer.write(csv(artifact.getSourceName()));
                 writer.write(",");
                 writer.write(csv(artifact.getSourceType().name()));
+                writer.write(",");
+                writer.write(csv(artifact.getProducerName()));
                 writer.write(",");
                 writer.write(csv(artifact.getEncoding()));
                 writer.write(",");
@@ -93,6 +104,47 @@ public class CsvReporter implements Reporter{
         }
     }
 
+    public void writeHypothesesCsv(List<Hypothesis> hypotheses, Path outputPath) throws IOException {
+        try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
+            writer.write("id,title,activityType,confidence,claim,supportingClusterIds,supportingArtifactIds,subclaimIds,subclaimTypes,subclaims,sourceNames,sourceTypes,producerNames,caveats,alternativeExplanations,ruleIds");
+            writer.newLine();
+            for (Hypothesis hypothesis : hypotheses) {
+                writer.write(csv(hypothesis.getId()));
+                writer.write(",");
+                writer.write(csv(hypothesis.getTitle()));
+                writer.write(",");
+                writer.write(csv(hypothesis.getActivityType().name()));
+                writer.write(",");
+                writer.write(formatConfidence(hypothesis.getConfidence()));
+                writer.write(",");
+                writer.write(csv(hypothesis.getClaim()));
+                writer.write(",");
+                writer.write(csv(joinStrings(hypothesis.getSupportingClusterIds())));
+                writer.write(",");
+                writer.write(csv(joinSupportingArtifactIds(hypothesis.getSubclaims())));
+                writer.write(",");
+                writer.write(csv(joinSubclaimIds(hypothesis.getSubclaims())));
+                writer.write(",");
+                writer.write(csv(joinSubclaimTypes(hypothesis.getSubclaims())));
+                writer.write(",");
+                writer.write(csv(joinSubclaimTexts(hypothesis.getSubclaims())));
+                writer.write(",");
+                writer.write(csv(joinStrings(hypothesis.getSourceNames())));
+                writer.write(",");
+                writer.write(csv(joinSourceTypes(hypothesis.getSourceTypes())));
+                writer.write(",");
+                writer.write(csv(joinStrings(hypothesis.getProducerNames())));
+                writer.write(",");
+                writer.write(csv(joinStrings(hypothesis.getCaveats())));
+                writer.write(",");
+                writer.write(csv(joinStrings(hypothesis.getAlternativeExplanations())));
+                writer.write(",");
+                writer.write(csv(joinRuleIds(hypothesis.getRuleIds())));
+                writer.newLine();
+            }
+        }
+    }
+
     private String csv(String value) {
         if (value == null)
             return "";
@@ -138,5 +190,39 @@ public class CsvReporter implements Reporter{
         }
 
         return String.join(";", names);
+    }
+
+    private String joinSubclaimIds(List<Subclaim> subclaims) {
+        List<String> ids = new ArrayList<>();
+        for (Subclaim subclaim : subclaims) {
+            ids.add(subclaim.getId());
+        }
+        return String.join(";", ids);
+    }
+
+    private String joinSubclaimTypes(List<Subclaim> subclaims) {
+        List<String> types = new ArrayList<>();
+
+        for (Subclaim subclaim : subclaims) {
+            types.add(subclaim.getType().name());
+        }
+
+        return String.join(";", types);
+    }
+
+    private String joinSubclaimTexts(List<Subclaim> subclaims) {
+        List<String> texts = new ArrayList<>();
+        for (Subclaim subclaim : subclaims) {
+            texts.add(subclaim.getText());
+        }
+        return String.join(" | ", texts);
+    }
+
+    private String joinSupportingArtifactIds(List<Subclaim> subclaims) {
+        Set<String> artifactIds = new TreeSet<>();
+        for (Subclaim subclaim : subclaims) {
+            artifactIds.addAll(subclaim.getSupportingArtifactIds());
+        }
+        return String.join(";", artifactIds);
     }
 }

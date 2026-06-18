@@ -8,11 +8,17 @@ import java.util.Map;
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
 import edu.sjsu.vmact.model.Cluster;
+import edu.sjsu.vmact.model.Hypothesis;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class ConsoleReporter implements Reporter{
     @Override
-    public void report(List<Artifact> artifacts, List<Cluster> clusters, ScanConfig config) {
+    public void report(
+        List<Artifact> artifacts, 
+        List<Cluster> clusters, 
+        List<Hypothesis> hypotheses, 
+        ScanConfig config
+    ) {
         long rootArtifactCount = artifacts.stream()
                 .filter(artifact -> !artifact.isDerived())
                 .count();
@@ -37,10 +43,14 @@ public class ConsoleReporter implements Reporter{
 
         System.out.println("\nClusters:");
         System.out.println("    Total clusters: " + clusters.size());
+
+        System.out.println("\nHypotheses:");
+        System.out.println("    Total hypotheses: " + hypotheses.size());
         
         System.out.println("\nReports:");
         printReportPath(config.getOutputDir().resolve("artifacts.csv"));
         printReportPath(config.getOutputDir().resolve("clusters.csv"));
+        printReportPath(config.getOutputDir().resolve("hypotheses.csv"));
     }
 
     private Map<ArtifactType, Integer> countArtifactTypes(List<Artifact> artifacts) {

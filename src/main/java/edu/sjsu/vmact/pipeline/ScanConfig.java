@@ -87,6 +87,14 @@ public class ScanConfig {
         return idGenerator.nextClusterId();
     }
 
+    public String nextHypothesisId() {
+        return idGenerator.nextHypothesisId();
+    }
+
+    public String nextSubclaimId() {
+        return idGenerator.nextSubclaimId();
+    }
+
     private String nextSourceId() {
         return idGenerator.nextSourceId();
     }

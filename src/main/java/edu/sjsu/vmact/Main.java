@@ -9,6 +9,7 @@ import edu.sjsu.vmact.detect.KeywordDetector;
 import edu.sjsu.vmact.detect.RegexArtifactDetector;
 import edu.sjsu.vmact.extract.AsciiStringExtractor;
 import edu.sjsu.vmact.extract.Utf16LeStringExtractor;
+import edu.sjsu.vmact.hypothesize.SimpleRuleHypothesisGenerator;
 import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
 import edu.sjsu.vmact.report.ConsoleReporter;
@@ -96,6 +97,7 @@ public class Main {
                 new RegexArtifactDetector()
             ), 
             new SimpleRuleCorrelator(), 
+            new SimpleRuleHypothesisGenerator(),
             List.of(
                 new CsvReporter(),
                 new ConsoleReporter() 
