@@ -48,7 +48,7 @@ public class ConsoleReporter implements Reporter{
         System.out.println("    Total hypotheses: " + hypotheses.size());
         
         System.out.println("\nReports:");
-        for (String reportPath : ReportPaths.getPaths()) {
+        for (String reportPath : ReportPaths.getOutputFilenames()) {
             printReportPath(config.getOutputDir().resolve(reportPath));
         }
       

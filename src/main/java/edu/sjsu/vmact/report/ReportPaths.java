@@ -11,7 +11,7 @@ public final class ReportPaths {
     private ReportPaths() {  
     }
 
-    public static List<String> getPaths() {
+    public static List<String> getOutputFilenames() {
         return List.of(ARTIFACTS_CSV, CLUSTERS_CSV, HYPOTHESES_CSV, REPORT_MD);
     }
 }
