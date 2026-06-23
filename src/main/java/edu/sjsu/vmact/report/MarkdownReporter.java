@@ -11,6 +11,8 @@ import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.Hypothesis;
 import edu.sjsu.vmact.model.RuleId;
+import edu.sjsu.vmact.model.ScoreBreakdown;
+import edu.sjsu.vmact.model.ScoreComponent;
 import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.model.Subclaim;
 import edu.sjsu.vmact.pipeline.ScanConfig;
@@ -100,6 +102,7 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
         writer.write("- Overclaim risk: `" + hypothesis.getOverclaimRisk().name() + "`");
         writer.newLine();
+        writeScoreBreakdown(writer, "", hypothesis.getScoreBreakdown());
         writer.write("- Sources: " + inlineList(hypothesis.getSourceNames()));
         writer.newLine();
         writer.write("- Source types: " + inlineSourceTypes(hypothesis.getSourceTypes()));
@@ -158,10 +161,11 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
         writer.write("  - Support score: `" + formatConfidence(subclaim.getConfidence()) + "`");
         writer.newLine();
-        writer.write("- Support level: `" + subclaim.getSupportLevel().name() + "`");
+        writer.write("  - Support level: `" + subclaim.getSupportLevel().name() + "`");
         writer.newLine();
-        writer.write("- Overclaim risk: `" + subclaim.getOverclaimRisk().name() + "`");
+        writer.write("  - Overclaim risk: `" + subclaim.getOverclaimRisk().name() + "`");
         writer.newLine();
+        writeScoreBreakdown(writer, "  ", subclaim.getScoreBreakdown());
         writer.write("  - Sources: " + inlineList(subclaim.getSourceNames()));
         writer.newLine();
         writer.write("  - Source types: " + inlineSourceTypes(subclaim.getSourceTypes()));
@@ -189,6 +193,30 @@ public class MarkdownReporter implements Reporter {
         }
 
         writer.newLine();
+    }
+
+    private void writeScoreBreakdown(
+        BufferedWriter writer,
+        String indent,
+        ScoreBreakdown scoreBreakdown
+    ) throws IOException {
+        writer.write(indent + "- Score breakdown:");
+        writer.newLine();
+
+        for (ScoreComponent component : scoreBreakdown.getComponents()) {
+            writer.write(indent + "  - `" + formatSignedDelta(component.getDelta()) + "` "
+                    + safe(component.getLabel()) + ": "
+                    + safe(component.getExplanation()));
+            writer.newLine();
+        }
+    }
+
+    private String formatSignedDelta(double delta) {
+        if (delta >= 0.0) {
+            return "+" + formatConfidence(delta);
+        }
+
+        return formatConfidence(delta);
     }
 
     private void writeClusterSummary(BufferedWriter writer, Cluster cluster) throws IOException {

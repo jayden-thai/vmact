@@ -27,14 +27,40 @@ public class Subclaim {
         List<String> producerNames,
         String caveat
     ) {
+        this(
+            id, 
+            type, 
+            text, 
+            ScoreBreakdown.fromScore(
+                confidence, 
+                OverclaimRisk.MODERATE, 
+                "This initial score is a rule-based evidentiary support value assigned by the current subclaim template."
+            ), 
+            supportingClusterIds, 
+            supportingArtifactIds, 
+            sourceNames, 
+            sourceTypes, 
+            producerNames, 
+            caveat
+        );
+    }
+
+    public Subclaim(
+        String id,
+        SubclaimType type,
+        String text,
+        ScoreBreakdown scoreBreakdown,
+        List<String> supportingClusterIds,
+        List<String> supportingArtifactIds,
+        List<String> sourceNames,
+        List<SourceType> sourceTypes,
+        List<String> producerNames,
+        String caveat
+    ) {
         this.id = id;
         this.type = type;
         this.text = text;
-        this.scoreBreakdown = ScoreBreakdown.fromScore(
-            confidence, 
-            OverclaimRisk.MODERATE, 
-            "This initial score is a rule-based evidentiary support value assigned by the current subclaim template."
-        );
+        this.scoreBreakdown = scoreBreakdown;
         this.supportingClusterIds = List.copyOf(supportingClusterIds);
         this.supportingArtifactIds = List.copyOf(supportingArtifactIds);
         this.sourceNames = List.copyOf(sourceNames);

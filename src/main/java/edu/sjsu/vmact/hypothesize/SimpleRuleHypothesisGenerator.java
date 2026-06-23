@@ -11,7 +11,10 @@ import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.Hypothesis;
+import edu.sjsu.vmact.model.OverclaimRisk;
 import edu.sjsu.vmact.model.RuleId;
+import edu.sjsu.vmact.model.ScoreBreakdown;
+import edu.sjsu.vmact.model.ScoreComponent;
 import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.model.Subclaim;
 import edu.sjsu.vmact.model.SubclaimType;
@@ -74,7 +77,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         return buildSubclaimFromClusters(
             SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED,
             "Email/account-like identifiers were recovered from supporting evidence clusters.",
-            0.70,
             clusters,
             "This supports account or communication trace presence, but does not prove successful login, message access, or message transmission.",
             config
@@ -89,7 +91,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         return buildSubclaimFromClusters(
             SubclaimType.URL_RECOVERED,
             "URL-like values were recovered from supporting evidence clusters.",
-            0.70,
             clusters,
             "This supports web-related trace presence, but does not independently prove that a page was visited by the user.",
             config
@@ -104,7 +105,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         return buildSubclaimFromClusters(
             SubclaimType.FILE_PATH_RECOVERED,
             "File path-like values were recovered from supporting evidence clusters.",
-            0.70,
             clusters,
             "This supports file-related trace presence, but does not independently prove file creation, editing, deletion, or transfer.",
             config
@@ -119,7 +119,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         return buildSubclaimFromClusters(
             SubclaimType.DEVICE_IDENTIFIER_RECOVERED,
             "Device identifier-like values were recovered from supporting evidence clusters.",
-            0.70,
             clusters,
             "This supports device-related trace presence, but does not independently prove file transfer or user intent.",
             config
@@ -129,16 +128,17 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
     private Subclaim buildSubclaimFromClusters(
         SubclaimType type,
         String text,
-        double confidence,
         List<Cluster> supportingClusters,
         String caveat,
         ScanConfig config
     ) {
+        ScoreBreakdown scoreBreakdown = scoreSubclaim(type, supportingClusters);
+
         return new Subclaim(
             config.nextSubclaimId(),
             type,
             text,
-            confidence,
+            scoreBreakdown,
             collectClusterIds(supportingClusters),
             collectArtifactIds(supportingClusters),
             collectSourceNamesFromClusters(supportingClusters),
@@ -146,6 +146,144 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             collectProducerNamesFromClusters(supportingClusters),
             caveat
         );
+    }
+
+    private ScoreBreakdown scoreSubclaim(SubclaimType type, List<Cluster> supportingClusters) {
+        List<ScoreComponent> components = new ArrayList<>();
+
+        components.add(new ScoreComponent(
+            "Base subclaim support",
+            0.35,
+            "A subclaim was generated because at least one supporting evidence cluster matched this template."
+        ));
+
+        components.add(new ScoreComponent(
+            "Supporting cluster count",
+            calculateClusterCountBonus(supportingClusters),
+            "Additional supporting clusters increase evidentiary support, with a capped bonus."
+        ));
+
+        components.add(new ScoreComponent(
+            "Artifact type specificity",
+            calculateArtifactTypeSpecificityBonus(type),
+            "More specific artifact categories provide stronger support than generic recovered strings."
+        ));
+
+        components.add(new ScoreComponent(
+            "Source diversity",
+            calculateSourceDiversityBonus(supportingClusters),
+            "Evidence recovered from multiple source names or source types provides stronger support than a single source."
+        ));
+
+        components.add(new ScoreComponent(
+            "Producer diversity",
+            calculateProducerDiversityBonus(supportingClusters),
+            "Evidence produced by multiple extraction or detection modules provides stronger support than a single producer."
+        ));
+
+        components.add(new ScoreComponent(
+            "Volatile-memory interpretation limitation",
+            -0.05,
+            "Volatile-memory artifacts can reflect cached state, residue, or automatic system behavior; this reduces overclaiming."
+        ));
+
+        return ScoreBreakdown.fromComponents(
+            components,
+            determineSubclaimOverclaimRisk(type),
+            "Subclaim score is derived from template match, artifact specificity, provenance diversity, and volatility-related limitations."
+        );
+    }
+
+    private double calculateClusterCountBonus(List<Cluster> clusters) {
+        if (clusters.size() >= 3) {
+            return 0.10;
+        }
+
+        if (clusters.size() == 2) {
+            return 0.06;
+        }
+
+        return 0.0;
+    }
+
+    private double calculateArtifactTypeSpecificityBonus(SubclaimType type) {
+        if (type == SubclaimType.DEVICE_IDENTIFIER_RECOVERED) {
+            return 0.20;
+        }
+
+        if (type == SubclaimType.FILE_PATH_RECOVERED) {
+            return 0.18;
+        }
+
+        if (type == SubclaimType.URL_RECOVERED) {
+            return 0.16;
+        }
+
+        if (type == SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED) {
+            return 0.16;
+        }
+
+        return 0.08;
+    }
+
+    private double calculateSourceDiversityBonus(List<Cluster> clusters) {
+        Set<String> sourceNames = new TreeSet<>();
+        Set<SourceType> sourceTypes = EnumSet.noneOf(SourceType.class);
+
+        for (Cluster cluster : clusters) {
+            sourceNames.addAll(cluster.getSourceNames());
+            sourceTypes.addAll(cluster.getSourceTypes());
+        }
+
+        double bonus = 0.0;
+
+        if (sourceNames.size() >= 2) {
+            bonus += 0.05;
+        }
+
+        if (sourceTypes.size() >= 2) {
+            bonus += 0.05;
+        }
+
+        return bonus;
+    }
+
+    private double calculateProducerDiversityBonus(List<Cluster> clusters) {
+        Set<String> producerNames = new TreeSet<>();
+
+        for (Cluster cluster : clusters) {
+            producerNames.addAll(cluster.getProducerNames());
+        }
+
+        if (producerNames.size() >= 3) {
+            return 0.08;
+        }
+
+        if (producerNames.size() == 2) {
+            return 0.05;
+        }
+
+        return 0.0;
+    }
+
+    private OverclaimRisk determineSubclaimOverclaimRisk(SubclaimType type) {
+        if (type == SubclaimType.DEVICE_IDENTIFIER_RECOVERED) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        if (type == SubclaimType.FILE_PATH_RECOVERED) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        if (type == SubclaimType.URL_RECOVERED) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        if (type == SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED) {
+            return OverclaimRisk.HIGH;
+        }
+
+        return OverclaimRisk.HIGH;
     }
 
     private Hypothesis buildAccountHypothesis(List<Subclaim> subclaims, ScanConfig config) {
@@ -162,7 +300,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             "Possible account or communication trace",
             "Supporting subclaims indicate the presence of account or communication-related identifiers.",
             ActivityType.ACCOUNT_OR_COMMUNICATION,
-            0.70,
             selectedSubclaims,
             List.of(
                 "Recovered account-like values may reflect user input, cached content, configuration fragments, or memory residue.",
@@ -192,7 +329,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             "Possible web activity trace",
             "Supporting subclaims indicate the presence of web-related activity indicators.",
             ActivityType.WEB_ACTIVITY,
-            0.70,
             selectedSubclaims,
             List.of(
                 "Recovered URLs may come from browser activity, cached content, logs, bookmarks, copied text, or preload data",
@@ -222,7 +358,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             "Possible file activity trace",
             "Supporting subclaims indicate the presence of file-system-related activity indicators.",
             ActivityType.FILE_ACTIVITY,
-            0.72,
             selectedSubclaims,
             List.of(
                 "File path artifacts can reflect recent access, application state, cached metadata, bookmarks, or system-generated references.",
@@ -252,7 +387,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             "Possible external device interaction trace",
             "Supporting subclaims indicate the presence of removable or external device indicators.",
             ActivityType.DEVICE_INTERACTION,
-            0.75,
             selectedSubclaims,
             List.of(
                 "Device identifiers may reflect enumeration, driver state, cached system metadata, or host-level artifacts.",
@@ -272,19 +406,20 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         String title,
         String claim,
         ActivityType activityType,
-        double confidence,
         List<Subclaim> subclaims,
         List<String> caveats,
         List<String> alternativeExplanations,
         List<RuleId> ruleIds,
         ScanConfig config
     ) {
+        ScoreBreakdown scoreBreakdown = scoreHypothesis(activityType, subclaims);
+
         return new Hypothesis(
             config.nextHypothesisId(),
             title,
             claim,
             activityType,
-            confidence,
+            scoreBreakdown,
             collectClusterIdsFromSubclaims(subclaims),
             subclaims,
             collectSourceNamesFromSubclaims(subclaims),
@@ -294,6 +429,151 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             alternativeExplanations,
             ruleIds
         );
+    }
+
+    private ScoreBreakdown scoreHypothesis(ActivityType activityType, List<Subclaim> subclaims) {
+        List<ScoreComponent> components = new ArrayList<>();
+
+        components.add(new ScoreComponent(
+                "Base hypothesis support",
+                0.15,
+                "A hypothesis was generated because at least one selected subclaim matched this activity-level template."
+        ));
+
+        components.add(new ScoreComponent(
+                "Subclaim support contribution",
+                calculateSubclaimSupportContribution(subclaims),
+                "The average support score of selected subclaims contributes to the activity-level hypothesis score."
+        ));
+
+        components.add(new ScoreComponent(
+                "Subclaim coverage",
+                calculateSubclaimCoverageBonus(subclaims),
+                "Hypotheses supported by multiple subclaims receive a capped coverage bonus."
+        ));
+
+        components.add(new ScoreComponent(
+                "Source diversity",
+                calculateSubclaimSourceDiversityBonus(subclaims),
+                "Evidence represented across multiple source names or source types provides stronger activity-level support."
+        ));
+
+        components.add(new ScoreComponent(
+                "Producer diversity",
+                calculateSubclaimProducerDiversityBonus(subclaims),
+                "Hypotheses supported by evidence produced by multiple extraction or detection modules receive a small corroboration bonus."
+        ));
+
+        components.add(new ScoreComponent(
+                "Activity-level interpretation limitation",
+                -0.05,
+                "Activity-level hypotheses are interpretive and may overstate what volatile artifacts alone can prove."
+        ));
+
+        return ScoreBreakdown.fromComponents(
+                components,
+                determineHypothesisOverclaimRisk(activityType, subclaims),
+                "Hypothesis score is derived from selected subclaim strength, subclaim coverage, provenance diversity, and an activity-level interpretation penalty."
+        );
+    }
+
+    private double calculateSubclaimSupportContribution(List<Subclaim> subclaims) {
+        if (subclaims.isEmpty()) {
+            return 0.0;
+        }
+
+        double total = 0.0;
+
+        for (Subclaim subclaim : subclaims) {
+            total += subclaim.getScoreBreakdown().getFinalScore();
+        }
+
+        double average = total / subclaims.size();
+
+        return average * 0.55;
+    }
+
+    private double calculateSubclaimCoverageBonus(List<Subclaim> subclaims) {
+        if (subclaims.size() >= 3) {
+            return 0.15;
+        }
+
+        if (subclaims.size() == 2) {
+            return 0.10;
+        }
+
+        if (subclaims.size() == 1) {
+            return 0.05;
+        }
+
+        return 0.0;
+    }
+
+    private double calculateSubclaimSourceDiversityBonus(List<Subclaim> subclaims) {
+        Set<String> sourceNames = new TreeSet<>();
+        Set<SourceType> sourceTypes = EnumSet.noneOf(SourceType.class);
+
+        for (Subclaim subclaim : subclaims) {
+            sourceNames.addAll(subclaim.getSourceNames());
+            sourceTypes.addAll(subclaim.getSourceTypes());
+        }
+
+        double bonus = 0.0;
+
+        if (sourceNames.size() >= 2) {
+            bonus += 0.05;
+        }
+
+        if (sourceTypes.size() >= 2) {
+            bonus += 0.05;
+        }
+
+        return bonus;
+    }
+
+    private double calculateSubclaimProducerDiversityBonus(List<Subclaim> subclaims) {
+        Set<String> producerNames = new TreeSet<>();
+
+        for (Subclaim subclaim : subclaims) {
+            producerNames.addAll(subclaim.getProducerNames());
+        }
+
+        if (producerNames.size() >= 3) {
+            return 0.08;
+        }
+
+        if (producerNames.size() == 2) {
+            return 0.05;
+        }
+
+        return 0.0;
+    }
+
+    private OverclaimRisk determineHypothesisOverclaimRisk(
+            ActivityType activityType,
+            List<Subclaim> subclaims
+    ) {
+        if (activityType == ActivityType.ACCOUNT_OR_COMMUNICATION) {
+            return OverclaimRisk.HIGH;
+        }
+
+        if (subclaims.size() == 1) {
+            return OverclaimRisk.HIGH;
+        }
+
+        if (activityType == ActivityType.FILE_ACTIVITY) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        if (activityType == ActivityType.WEB_ACTIVITY) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        if (activityType == ActivityType.DEVICE_INTERACTION) {
+            return OverclaimRisk.MODERATE;
+        }
+
+        return OverclaimRisk.HIGH;
     }
 
     private List<Subclaim> findSubclaims(List<Subclaim> subclaims, SubclaimType type) {

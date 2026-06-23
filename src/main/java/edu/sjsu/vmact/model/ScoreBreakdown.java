@@ -44,6 +44,28 @@ public class ScoreBreakdown {
         );
     }
 
+    public static ScoreBreakdown fromComponents(
+    List<ScoreComponent> components,
+    OverclaimRisk overclaimRisk,
+    String explanation
+) {
+    double total = 0.0;
+
+    for (ScoreComponent component : components) {
+        total += component.getDelta();
+    }
+
+    double clampedScore = clamp(total);
+
+    return new ScoreBreakdown(
+        clampedScore,
+        SupportLevel.fromScore(clampedScore),
+        overclaimRisk,
+        components,
+        explanation
+    );
+}
+
     public double getFinalScore() {
         return finalScore;
     }

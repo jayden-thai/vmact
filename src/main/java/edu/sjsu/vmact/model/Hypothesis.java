@@ -33,16 +33,47 @@ public class Hypothesis {
         List<String> alternativeExplanations,
         List<RuleId> ruleIds
     ) {
+        this(
+            id,
+            title,
+            claim,
+            activityType,
+            ScoreBreakdown.fromScore(
+                confidence,
+                OverclaimRisk.MODERATE,
+                "This initial score is a rule-based evidentiary support value assigned by the current hypothesis template."
+            ),
+            supportingClusterIds,
+            subclaims,
+            sourceNames,
+            sourceTypes,
+            producerNames,
+            caveats,
+            alternativeExplanations,
+            ruleIds
+        );
+    }
+
+    public Hypothesis(
+        String id,
+        String title,
+        String claim,
+        ActivityType activityType,
+        ScoreBreakdown scoreBreakdown,
+        List<String> supportingClusterIds,
+        List<Subclaim> subclaims,
+        List<String> sourceNames,
+        List<SourceType> sourceTypes,
+        List<String> producerNames,
+        List<String> caveats,
+        List<String> alternativeExplanations,
+        List<RuleId> ruleIds
+    ) {
         this.id = id;
         this.title = title;
         this.claim = claim;
         this.activityType = activityType;
-        this.scoreBreakdown = ScoreBreakdown.fromScore(
-            confidence, 
-            OverclaimRisk.MODERATE, 
-            "This initial score is a rule-based evidentiary support value assigned by the current hypothesis template."
-
-        );
+        this.scoreBreakdown = scoreBreakdown;
         this.supportingClusterIds = List.copyOf(supportingClusterIds);
         this.subclaims = List.copyOf(subclaims);
         this.sourceNames = List.copyOf(sourceNames);
