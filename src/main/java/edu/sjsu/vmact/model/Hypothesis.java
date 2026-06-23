@@ -8,7 +8,7 @@ public class Hypothesis {
     private final String title;
     private final String claim;
     private final ActivityType activityType;
-    private final double confidence;
+    private final ScoreBreakdown scoreBreakdown;
     private final List<String> supportingClusterIds;
     private final List<Subclaim> subclaims;
     private final List<String> sourceNames;
@@ -37,7 +37,12 @@ public class Hypothesis {
         this.title = title;
         this.claim = claim;
         this.activityType = activityType;
-        this.confidence = confidence;
+        this.scoreBreakdown = ScoreBreakdown.fromScore(
+            confidence, 
+            OverclaimRisk.MODERATE, 
+            "This initial score is a rule-based evidentiary support value assigned by the current hypothesis template."
+
+        );
         this.supportingClusterIds = List.copyOf(supportingClusterIds);
         this.subclaims = List.copyOf(subclaims);
         this.sourceNames = List.copyOf(sourceNames);
@@ -65,7 +70,19 @@ public class Hypothesis {
     }
 
     public double getConfidence() {
-        return confidence;
+        return scoreBreakdown.getFinalScore();
+    }
+
+    public OverclaimRisk getOverclaimRisk() {
+        return scoreBreakdown.getOverclaimRisk();
+    }
+
+    public SupportLevel getSupportLevel() {
+        return scoreBreakdown.getSupportLevel();
+    }
+
+    public ScoreBreakdown getScoreBreakdown() {
+        return scoreBreakdown;
     }
 
     public List<String> getSupportingClusterIds() {
@@ -107,7 +124,9 @@ public class Hypothesis {
                 ", title='" + title + '\'' +
                 ", claim='" + claim + '\'' +
                 ", activityType='" + activityType + '\'' +
-                ", confidence=" + confidence +
+                ", confidence=" + getConfidence() +
+                ", supportLevel=" + getSupportLevel() +
+                ", overclaimRisk=" + getOverclaimRisk() +
                 ", supportingClusterIds=" + supportingClusterIds +
                 ", subclaimCount=" + subclaims.size() +
                 ", sourceNames=" + sourceNames +

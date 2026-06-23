@@ -96,6 +96,10 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
         writer.write("- Support score: `" + formatConfidence(hypothesis.getConfidence()) + "`");
         writer.newLine();
+        writer.write("- Support level: `" + hypothesis.getSupportLevel().name() + "`");
+        writer.newLine();
+        writer.write("- Overclaim risk: `" + hypothesis.getOverclaimRisk().name() + "`");
+        writer.newLine();
         writer.write("- Sources: " + inlineList(hypothesis.getSourceNames()));
         writer.newLine();
         writer.write("- Source types: " + inlineSourceTypes(hypothesis.getSourceTypes()));
@@ -153,6 +157,10 @@ public class MarkdownReporter implements Reporter {
         writer.write("  - Statement: " + safe(subclaim.getText()));
         writer.newLine();
         writer.write("  - Support score: `" + formatConfidence(subclaim.getConfidence()) + "`");
+        writer.newLine();
+        writer.write("- Support level: `" + subclaim.getSupportLevel().name() + "`");
+        writer.newLine();
+        writer.write("- Overclaim risk: `" + subclaim.getOverclaimRisk().name() + "`");
         writer.newLine();
         writer.write("  - Sources: " + inlineList(subclaim.getSourceNames()));
         writer.newLine();

@@ -7,7 +7,7 @@ public class Subclaim {
     private final String id;
     private final SubclaimType type;
     private final String text;
-    private final double confidence;
+    private final ScoreBreakdown scoreBreakdown;
     private final List<String> supportingClusterIds;
     private final List<String> supportingArtifactIds;
     private final List<String> sourceNames;
@@ -30,7 +30,11 @@ public class Subclaim {
         this.id = id;
         this.type = type;
         this.text = text;
-        this.confidence = confidence;
+        this.scoreBreakdown = ScoreBreakdown.fromScore(
+            confidence, 
+            OverclaimRisk.MODERATE, 
+            "This initial score is a rule-based evidentiary support value assigned by the current subclaim template."
+        );
         this.supportingClusterIds = List.copyOf(supportingClusterIds);
         this.supportingArtifactIds = List.copyOf(supportingArtifactIds);
         this.sourceNames = List.copyOf(sourceNames);
@@ -52,7 +56,19 @@ public class Subclaim {
     }
 
     public double getConfidence() {
-        return confidence;
+        return scoreBreakdown.getFinalScore();
+    }
+
+    public OverclaimRisk getOverclaimRisk() {
+        return scoreBreakdown.getOverclaimRisk();
+    }
+
+    public SupportLevel getSupportLevel() {
+        return scoreBreakdown.getSupportLevel();
+    }
+
+    public ScoreBreakdown getScoreBreakdown() {
+        return scoreBreakdown;
     }
 
     public List<String> getSupportingClusterIds() {
@@ -85,7 +101,9 @@ public class Subclaim {
                 "id='" + id + '\'' +
                 ", type=" + type +
                 ", text='" + text + '\'' +
-                ", confidence=" + confidence +
+                ", confidence=" + getConfidence() +
+                ", supportLevel=" + getSupportLevel() +
+                ", overclaimRisk=" + getOverclaimRisk() +
                 ", supportingClusterIds=" + supportingClusterIds + 
                 ", supportingArtifactIds=" + supportingArtifactIds +
                 ", sourceNames=" + sourceNames +
