@@ -83,6 +83,14 @@ public class Artifact {
         return offset;
     }
 
+    public String getOffsetHex() {
+        if (offset < 0) {
+            return "";
+        }
+
+        return String.format("0x%X", offset);
+    }
+
     public String getContext() {
         return context;
     }

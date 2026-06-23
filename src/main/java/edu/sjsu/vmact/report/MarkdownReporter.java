@@ -254,6 +254,7 @@ public class MarkdownReporter implements Reporter {
         writer.write("        - " + artifact.getId()
                 + " `" + artifact.getType().name() + "`"
                 + " offset=`" + artifact.getOffset() + "`"
+                + " offsetHex=`" + artifact.getOffsetHex() + "`"
                 + " encoding=`" + safe(artifact.getEncoding()) + "`"
                 + " producer=`" + safe(artifact.getProducerName()) + "`");
         writer.newLine();
