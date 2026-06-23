@@ -14,6 +14,7 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 import edu.sjsu.vmact.pipeline.ScanPipeline;
 import edu.sjsu.vmact.report.ConsoleReporter;
 import edu.sjsu.vmact.report.CsvReporter;
+import edu.sjsu.vmact.report.MarkdownReporter;
 
 public class Main {
     public static void main(String[] args) {
@@ -100,6 +101,7 @@ public class Main {
             new SimpleRuleHypothesisGenerator(),
             List.of(
                 new CsvReporter(),
+                new MarkdownReporter(),
                 new ConsoleReporter() 
             )
         );
