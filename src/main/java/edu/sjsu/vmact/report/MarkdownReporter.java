@@ -27,7 +27,7 @@ public class MarkdownReporter implements Reporter {
     ) throws IOException {
         Files.createDirectories(config.getOutputDir());
 
-        Path outputPath = config.getOutputDir().resolve("report.md");
+        Path outputPath = config.getOutputDir().resolve(ReportPaths.REPORT_MD);
 
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
             writeHeader(writer, artifacts, clusters, hypotheses);
@@ -100,7 +100,7 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
         writer.write("- Source types: " + inlineSourceTypes(hypothesis.getSourceTypes()));
         writer.newLine();
-        writer.write("- Producer: " + inlineList(hypothesis.getProducerNames()));
+        writer.write("- Producers: " + inlineList(hypothesis.getProducerNames()));
         writer.newLine();
         writer.write("- Rules: " + inlineRuleIds(hypothesis.getRuleIds()));
         writer.newLine();

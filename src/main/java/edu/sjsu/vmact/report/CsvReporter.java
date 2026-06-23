@@ -27,9 +27,9 @@ public class CsvReporter implements Reporter{
     ) throws IOException {
         Files.createDirectories(config.getOutputDir());
 
-        writeArtifactsCsv(artifacts, config.getOutputDir().resolve("artifacts.csv"));
-        writeClustersCsv(clusters, config.getOutputDir().resolve("clusters.csv"));
-        writeHypothesesCsv(hypotheses, config.getOutputDir().resolve("hypotheses.csv"));
+        writeArtifactsCsv(artifacts, config.getOutputDir().resolve(ReportPaths.ARTIFACTS_CSV));
+        writeClustersCsv(clusters, config.getOutputDir().resolve(ReportPaths.CLUSTERS_CSV));
+        writeHypothesesCsv(hypotheses, config.getOutputDir().resolve(ReportPaths.HYPOTHESES_CSV));
     }
 
     private void writeArtifactsCsv(List<Artifact> artifacts, Path outputPath) throws IOException{

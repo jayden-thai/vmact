@@ -48,10 +48,10 @@ public class ConsoleReporter implements Reporter{
         System.out.println("    Total hypotheses: " + hypotheses.size());
         
         System.out.println("\nReports:");
-        printReportPath(config.getOutputDir().resolve("artifacts.csv"));
-        printReportPath(config.getOutputDir().resolve("clusters.csv"));
-        printReportPath(config.getOutputDir().resolve("hypotheses.csv"));
-        printReportPath(config.getOutputDir().resolve("report.md"));
+        for (String reportPath : ReportPaths.getPaths()) {
+            printReportPath(config.getOutputDir().resolve(reportPath));
+        }
+      
     }
 
     private Map<ArtifactType, Integer> countArtifactTypes(List<Artifact> artifacts) {
