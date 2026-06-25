@@ -97,8 +97,12 @@ public class Main {
                 new KeywordDetector(),
                 new RegexArtifactDetector()
             ), 
-            new SimpleRuleCorrelator(), 
-            new SimpleRuleHypothesisGenerator(),
+            List.of(
+                new SimpleRuleCorrelator()
+            ), 
+            List.of(
+                new SimpleRuleHypothesisGenerator()
+            ),
             List.of(
                 new CsvReporter(),
                 new MarkdownReporter(),

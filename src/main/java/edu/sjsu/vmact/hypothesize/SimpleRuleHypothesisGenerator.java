@@ -24,7 +24,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
     
     @Override
     public List<Hypothesis> generate(
-        List<Artifact> artifacts,
         List<Cluster> clusters,
         ScanConfig config
     ) throws Exception {
@@ -49,24 +48,41 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         ClusterBuckets buckets = new ClusterBuckets();
 
         for (Cluster cluster : clusters) {
-            if (clusterContainsType(cluster, ArtifactType.EMAIL)) {
+            if (clusterContainsAnyType(cluster, ArtifactType.EMAIL)) {
                 buckets.emailClusters.add(cluster);
             }
 
-            if (clusterContainsType(cluster, ArtifactType.URL)) {
+            if (clusterContainsAnyType(cluster, ArtifactType.URL)) {
                 buckets.urlClusters.add(cluster);
             }
 
-            if (clusterContainsType(cluster, ArtifactType.FILE_PATH)) {
+            if (clusterContainsAnyType(
+                cluster, 
+                ArtifactType.WINDOWS_FILE_PATH,
+                ArtifactType.LINUX_FILE_PATH,
+                ArtifactType.FILE_URI
+            )) {
                 buckets.filePathClusters.add(cluster);
             }
 
-            if (clusterContainsType(cluster, ArtifactType.DEVICE_ID)) {
+            if (clusterContainsAnyType(cluster, ArtifactType.DEVICE_ID)) {
                 buckets.deviceIdClusters.add(cluster);
             }
         }
 
         return buckets;
+    }
+
+    private boolean clusterContainsAnyType(Cluster cluster, ArtifactType... artifactTypes) {
+        for (Artifact artifact : cluster.getArtifacts()) {
+            for (ArtifactType artifactType : artifactTypes) {
+                if (artifact.getType() == artifactType) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private Subclaim buildAccountIdentifierSubclaim(List<Cluster> clusters, ScanConfig config) {
@@ -586,16 +602,6 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         }
 
         return matches;
-    }
-
-    private boolean clusterContainsType(Cluster cluster, ArtifactType artifactType) {
-        for (Artifact artifact : cluster.getArtifacts()) {
-            if (artifact.getType() == artifactType) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private List<String> collectClusterIds(List<Cluster> clusters) {

@@ -1,11 +1,8 @@
 package edu.sjsu.vmact.extract;
 
 import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
@@ -15,6 +12,8 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class AsciiStringExtractor implements Extractor{
     private static final int MIN_STRING_LENGTH = 4;
+    private static final int MAX_STRING_LENGTH = 8192;
+    private static final long PROGRESS_INTERVAL_BYTES = 512L * 1024L * 1024L;
 
     @Override
     public boolean supports(EvidenceSource source) {
@@ -23,8 +22,13 @@ public class AsciiStringExtractor implements Extractor{
     }
 
     @Override
-    public List<Artifact> extract(EvidenceSource source, ScanConfig config) throws IOException {
-        List<Artifact> artifacts = new ArrayList<>();
+    public void extract(
+        EvidenceSource source, 
+        ScanConfig config, 
+        ArtifactWriter artifactWriter
+    ) throws Exception {
+        StringRelevanceFilter relevanceFilter = StringRelevanceFilter.fromConfig(config);
+        long nextProgressOffset = PROGRESS_INTERVAL_BYTES;
 
         try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(source.getPath()))) {
             StringBuilder currentString = new StringBuilder();
@@ -42,19 +46,46 @@ public class AsciiStringExtractor implements Extractor{
                     }
 
                     currentString.append((char) b);
+
+                    if (currentString.length() >= MAX_STRING_LENGTH) {
+                        flushRelevantStringIfLongEnough(
+                            source, 
+                            config, 
+                            artifactWriter,
+                            relevanceFilter, 
+                            currentString, 
+                            stringStartOffset
+                        );
+                    }
                 } else {
-                    flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
+                    flushRelevantStringIfLongEnough(
+                        source, 
+                        config, 
+                        artifactWriter,
+                        relevanceFilter, 
+                        currentString, 
+                        stringStartOffset
+                    );
                     currentString.setLength(0);
                     stringStartOffset = -1;
                 }
 
                 currentOffset++;
+                if (currentOffset >= nextProgressOffset) {
+                    System.out.println("ASCII scan processed " + formatBytes(currentOffset));
+                    nextProgressOffset += PROGRESS_INTERVAL_BYTES;
+                }
             }
 
-            flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
+            flushRelevantStringIfLongEnough(
+                source, 
+                config, 
+                artifactWriter,
+                relevanceFilter,
+                currentString, 
+                stringStartOffset
+            );
         }
-
-        return artifacts;
     }
 
     private boolean isPrintableAscii(byte b) {
@@ -63,9 +94,16 @@ public class AsciiStringExtractor implements Extractor{
         return unsignedByte >= 32 && unsignedByte <= 126;
     }
 
-    private  void flushStringIfLongEnough(EvidenceSource source, ScanConfig config, List<Artifact> artifacts, StringBuilder currentString, long stringStartOffset) {
-        if (currentString.length() >= MIN_STRING_LENGTH) {
-            artifacts.add(new Artifact(
+    private  void flushRelevantStringIfLongEnough(
+        EvidenceSource source, 
+        ScanConfig config, 
+        ArtifactWriter artifactWriter, 
+        StringRelevanceFilter relevanceFilter,
+        StringBuilder currentString, 
+        long stringStartOffset
+    ) throws Exception {
+        if (currentString.length() >= MIN_STRING_LENGTH && relevanceFilter.isRelevant(currentString)) {
+            artifactWriter.write(new Artifact(
                 config.nextArtifactId(),
                 "",
                 ArtifactType.RAW_STRING, 
@@ -80,5 +118,10 @@ public class AsciiStringExtractor implements Extractor{
                 1.0
             ));
         }
+    }
+
+    private String formatBytes(long bytes) {
+        long megabytes = bytes / (1024L * 1024L);
+        return megabytes + " MB";
     }
 }

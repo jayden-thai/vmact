@@ -5,7 +5,9 @@ public enum ArtifactType {
     KEYWORD_HIT,
     URL,
     EMAIL,
-    FILE_PATH,
+    WINDOWS_FILE_PATH,
+    LINUX_FILE_PATH,
+    FILE_URI,
     DEVICE_ID,
     PROCESS,
     UNKNOWN

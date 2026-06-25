@@ -1,11 +1,8 @@
 package edu.sjsu.vmact.extract;
 
 import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
 
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
@@ -15,6 +12,8 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class Utf16LeStringExtractor implements Extractor {
     private static final int MIN_STRING_LENGTH = 4;
+    private static final int MAX_STRING_LENGTH = 8192;
+    private static final long PROGRESS_INTERVAL_BYTES = 512L * 1024L * 1024L;
 
     @Override
     public boolean supports(EvidenceSource source) {
@@ -23,21 +22,26 @@ public class Utf16LeStringExtractor implements Extractor {
     }
 
     @Override
-    public List<Artifact> extract(EvidenceSource source, ScanConfig config) throws IOException {
-        List<Artifact> artifacts = new ArrayList<>();
+    public void extract(
+        EvidenceSource source, 
+        ScanConfig config,
+        ArtifactWriter artifactWriter
+    ) throws Exception {
+        StringRelevanceFilter relevanceFilter = StringRelevanceFilter.fromConfig(config);
 
-        scanWithAlignment(source, config, artifacts, 0);
-        scanWithAlignment(source, config, artifacts, 1);
-
-        return artifacts;
+        scanWithAlignment(source, config, artifactWriter, relevanceFilter, 0);
+        scanWithAlignment(source, config, artifactWriter, relevanceFilter, 1);
     }
 
     private void scanWithAlignment(
         EvidenceSource source,
         ScanConfig config,
-        List<Artifact> artifacts,
+        ArtifactWriter artifactWriter,
+        StringRelevanceFilter relevanceFilter,
         int alignment
-    ) throws IOException {
+    ) throws Exception {
+        long nextProgressOffset = PROGRESS_INTERVAL_BYTES;
+
         try (InputStream inputStream = new BufferedInputStream(Files.newInputStream(source.getPath()))) {
             long currentOffset = 0;
 
@@ -49,6 +53,8 @@ public class Utf16LeStringExtractor implements Extractor {
                 }
 
                 currentOffset = 1;
+            } else if (alignment != 0) {
+                throw new Exception("Valid alignment must be passed in as 1 or 0");
             }
 
             StringBuilder currentString = new StringBuilder();
@@ -67,19 +73,53 @@ public class Utf16LeStringExtractor implements Extractor {
                     }
 
                     currentString.append((char) unsignedLowByte);
+
+                    if (currentString.length() >= MAX_STRING_LENGTH) {
+                        flushRelevantStringIfLongEnough(
+                                source,
+                                config,
+                                artifactWriter,
+                                relevanceFilter,
+                                currentString,
+                                stringStartOffset
+                        );
+                        
+                        currentString.setLength(0);
+                        stringStartOffset = -1;
+                    }
                 } else {
-                    flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
+                    flushRelevantStringIfLongEnough(
+                        source, 
+                        config, 
+                        artifactWriter, 
+                        relevanceFilter, 
+                        currentString, 
+                        stringStartOffset
+                    );
+
                     currentString.setLength(0);
                     stringStartOffset = -1;
                 }
 
                 currentOffset += 2;
 
+                if (currentOffset >= nextProgressOffset) {
+                    System.out.println("UTF-16LE alignment " + alignment + " scan processed " + formatBytes(currentOffset));
+                    nextProgressOffset += PROGRESS_INTERVAL_BYTES;
+                }
+
                 lowByte = inputStream.read();
                 highByte = inputStream.read();
             }
 
-            flushStringIfLongEnough(source, config, artifacts, currentString, stringStartOffset);
+            flushRelevantStringIfLongEnough(
+                source, 
+                config, 
+                artifactWriter, 
+                relevanceFilter, 
+                currentString, 
+                stringStartOffset
+            );
         }
     }
 
@@ -89,15 +129,16 @@ public class Utf16LeStringExtractor implements Extractor {
                 && lowByte <= 126;
     }
 
-    private void flushStringIfLongEnough(
+    private void flushRelevantStringIfLongEnough(
         EvidenceSource source,
         ScanConfig config,
-        List<Artifact> artifacts,
+        ArtifactWriter artifactWriter,
+        StringRelevanceFilter relevanceFilter,
         StringBuilder currentString,
         long stringStartOffset
-    ) {
-        if(currentString.length() >= MIN_STRING_LENGTH) {
-            artifacts.add(new Artifact(
+    ) throws Exception {
+        if(currentString.length() >= MIN_STRING_LENGTH && relevanceFilter.isRelevant(currentString)) {
+            artifactWriter.write(new Artifact(
                 config.nextArtifactId(),
                 "",
                 ArtifactType.RAW_STRING,
@@ -112,6 +153,11 @@ public class Utf16LeStringExtractor implements Extractor {
                 1.0
             ));
         } 
+    }
+
+    private String formatBytes(long bytes) {
+        long megabytes = bytes / (1024L * 1024L);
+        return megabytes + " MB";
     }
 
 }

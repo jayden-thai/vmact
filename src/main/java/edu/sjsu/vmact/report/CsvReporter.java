@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
+import edu.sjsu.vmact.extract.ArtifactReader;
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.Hypothesis;
@@ -20,24 +21,25 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class CsvReporter implements Reporter{
     @Override
-    public void report(List<Artifact> artifacts, 
+    public void report(
+        ArtifactReader artifactReader, 
         List<Cluster> clusters, 
         List<Hypothesis> hypotheses, 
         ScanConfig config
-    ) throws IOException {
+    ) throws Exception {
         Files.createDirectories(config.getOutputDir());
 
-        writeArtifactsCsv(artifacts, config.getOutputDir().resolve(ReportPaths.ARTIFACTS_CSV));
+        writeArtifactsCsv(artifactReader, config.getOutputDir().resolve(ReportPaths.ARTIFACTS_CSV));
         writeClustersCsv(clusters, config.getOutputDir().resolve(ReportPaths.CLUSTERS_CSV));
         writeHypothesesCsv(hypotheses, config.getOutputDir().resolve(ReportPaths.HYPOTHESES_CSV));
     }
 
-    private void writeArtifactsCsv(List<Artifact> artifacts, Path outputPath) throws IOException{
+    private void writeArtifactsCsv(ArtifactReader artifactReader, Path outputPath) throws Exception{
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
             writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,producerName,encoding,offset,confidence,context");
             writer.newLine();
 
-            for (Artifact artifact : artifacts) {
+            artifactReader.forEach(artifact -> {
                 writer.write(csv(artifact.getId()));
                 writer.write(",");
                 writer.write(csv(artifact.getParentArtifactId()));
@@ -62,7 +64,7 @@ public class CsvReporter implements Reporter{
                 writer.write(",");
                 writer.write(csv(artifact.getContext()));
                 writer.newLine();
-            }
+            });
         }
     }
 

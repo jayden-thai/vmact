@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 
+import edu.sjsu.vmact.extract.ArtifactReader;
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.Hypothesis;
@@ -22,17 +23,17 @@ public class MarkdownReporter implements Reporter {
 
     @Override
     public void report(
-        List<Artifact> artifacts,
+        ArtifactReader artifactReader,
         List<Cluster> clusters,
         List<Hypothesis> hypotheses,
         ScanConfig config
-    ) throws IOException {
+    ) throws Exception {
         Files.createDirectories(config.getOutputDir());
 
         Path outputPath = config.getOutputDir().resolve(ReportPaths.REPORT_MD);
 
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
-            writeHeader(writer, artifacts, clusters, hypotheses);
+            writeHeader(writer, artifactReader.count(), clusters, hypotheses);
             writeHypotheses(writer, hypotheses, clusters);
             writeAppendix(writer);
         }
@@ -40,7 +41,7 @@ public class MarkdownReporter implements Reporter {
 
     private void writeHeader(
         BufferedWriter writer,
-        List<Artifact> artifacts,
+        long artifactCount,
         List<Cluster> clusters,
         List<Hypothesis> hypotheses
     ) throws IOException {
@@ -52,7 +53,7 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
         writer.newLine();
 
-        writer.write("- Total artifacts: " + artifacts.size());
+        writer.write("- Total artifacts: " + artifactCount);
         writer.newLine();
         writer.write("- Total clusters: " + clusters.size());
         writer.newLine();
