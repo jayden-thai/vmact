@@ -1,16 +1,10 @@
 package edu.sjsu.vmact.detect;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import edu.sjsu.vmact.extract.ArtifactReader;
 import edu.sjsu.vmact.extract.ArtifactWriter;
-import edu.sjsu.vmact.extract.NdjsonArtifactReader;
-import edu.sjsu.vmact.extract.NdjsonArtifactWriter;
 import edu.sjsu.vmact.model.Artifact;
 import edu.sjsu.vmact.model.ArtifactType;
 import edu.sjsu.vmact.pipeline.ScanConfig;
