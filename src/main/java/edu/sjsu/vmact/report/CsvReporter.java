@@ -36,7 +36,7 @@ public class CsvReporter implements Reporter{
 
     private void writeArtifactsCsv(ArtifactReader artifactReader, Path outputPath) throws Exception{
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
-            writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,producerName,encoding,offset,confidence,context");
+            writer.write("id,parentArtifactId,type,value,sourceId,sourceName,sourceType,producerName,encoding,offset,offsetHex,confidence,context");
             writer.newLine();
 
             artifactReader.forEach(artifact -> {
@@ -59,6 +59,8 @@ public class CsvReporter implements Reporter{
                 writer.write(csv(artifact.getEncoding()));
                 writer.write(",");
                 writer.write(Long.toString(artifact.getOffset()));
+                writer.write(",");
+                writer.write(csv(artifact.getOffsetHex()));
                 writer.write(",");
                 writer.write(formatConfidence(artifact.getConfidence()));
                 writer.write(",");
