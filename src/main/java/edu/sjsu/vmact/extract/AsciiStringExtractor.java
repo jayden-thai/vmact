@@ -56,6 +56,8 @@ public class AsciiStringExtractor implements Extractor{
                             currentString, 
                             stringStartOffset
                         );
+                        currentString.setLength(0);
+                        stringStartOffset = -1;
                     }
                 } else {
                     flushRelevantStringIfLongEnough(
