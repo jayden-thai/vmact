@@ -31,7 +31,8 @@ public class RegexArtifactDetector implements Detector{
     );
 
     private static final Pattern DEVICE_ID_PATTERN = Pattern.compile(
-            "\\bUSBSTOR\\\\[^\\s\"'<>]+"
+            "(?:USBSTOR[\\\\#][^\\s\"'<>]+|DISK&VEN_[^\\s\"'<>]+|idVendor=[0-9A-Fa-f]{4})",
+            Pattern.CASE_INSENSITIVE
     );
 
     @Override
