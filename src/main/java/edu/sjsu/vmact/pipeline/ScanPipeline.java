@@ -1,6 +1,8 @@
 package edu.sjsu.vmact.pipeline;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +17,7 @@ import edu.sjsu.vmact.hypothesize.HypothesisGenerator;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.EvidenceSource;
 import edu.sjsu.vmact.model.Hypothesis;
+import edu.sjsu.vmact.report.ReportPaths;
 import edu.sjsu.vmact.report.Reporter;
 import edu.sjsu.vmact.util.Stopwatch;
 
@@ -105,6 +108,9 @@ public class ScanPipeline {
             detectorStage++;
         }
 
+        Path finalArtifactsPath = config.getOutputDir().resolve(ReportPaths.FINAL_ARTIFACTS_NDJSON);
+        Files.copy(currentArtifactsPath, finalArtifactsPath, StandardCopyOption.REPLACE_EXISTING);
+
         System.out.println("Total detection time: " + stageWatch.elapsedText() + "\n");
 
         // Correlation Stage
@@ -114,7 +120,7 @@ public class ScanPipeline {
         List<Cluster> clusters = new ArrayList<>();
 
         try (
-            ArtifactReader artifactReader = new NdjsonArtifactReader(currentArtifactsPath);
+            ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath);
         ) {
             for (int i = 1; i <= correlators.size(); i++) {
                 Stopwatch correlationWatch = Stopwatch.startNew();
@@ -151,7 +157,7 @@ public class ScanPipeline {
         stageWatch = Stopwatch.startNew();
 
         for (Reporter reporter : reporters) {
-            try (ArtifactReader artifactReader = new NdjsonArtifactReader(currentArtifactsPath)) {
+            try (ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath)) {
                 reporter.report(artifactReader, clusters, hypotheses, config);
             }
         }
