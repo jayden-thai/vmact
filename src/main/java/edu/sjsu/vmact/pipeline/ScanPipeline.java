@@ -119,10 +119,11 @@ public class ScanPipeline {
 
         List<Cluster> clusters = new ArrayList<>();
 
-        try (
-            ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath);
-        ) {
-            for (int i = 1; i <= correlators.size(); i++) {
+        
+        for (int i = 1; i <= correlators.size(); i++) {
+            try (
+                ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath);
+            ) {
                 Stopwatch correlationWatch = Stopwatch.startNew();
                 Correlator correlator = correlators.get(i - 1);
 
