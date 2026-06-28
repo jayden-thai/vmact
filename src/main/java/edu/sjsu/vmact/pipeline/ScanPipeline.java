@@ -47,12 +47,14 @@ public class ScanPipeline {
 
     public void run() throws Exception {
         Stopwatch totalWatch = Stopwatch.startNew();
+        List<ScanMetric> metrics = new ArrayList<>();
         System.out.println("\nBeginning Extraction...\n");
 
         // Extraction Stage
         Stopwatch stageWatch = Stopwatch.startNew();
 
         Path rootArtifactsPath = config.getOutputDir().resolve("root-artifacts.ndjson");
+        long rootArtifactCount;
 
         try (ArtifactWriter artifactWriter = new NdjsonArtifactWriter(rootArtifactsPath)) {
             List<EvidenceSource> evidenceSources = config.getEvidenceSources();
@@ -63,9 +65,23 @@ public class ScanPipeline {
                     Extractor extractor = extractors.get(k - 1);
                     if (extractor.supports(source)) {
                         Stopwatch extractionWatch = Stopwatch.startNew();
+                        long beforeCount = artifactWriter.getWrittenCount();
+
                         extractor.extract(source, config, artifactWriter);
+
+                        long producedCount = artifactWriter.getWrittenCount() - beforeCount;
+
+                        metrics.add(new ScanMetric(
+                                "extraction",
+                                extractor.getClass().getSimpleName(),
+                                extractionWatch.elapsedMillis(),
+                                producedCount,
+                                "source=" + source.getName() + ";sourceType=" + source.getType()
+                        ));
+
                         System.out.println("      (" + k + "/" + extractors.size() + ") " + extractor.getClass().getSimpleName()
-                                + " completed in " + extractionWatch.elapsedText());
+                                + " completed in " + extractionWatch.elapsedText()
+                                + " and retained " + producedCount + " artifact(s)");
                     } else {
                         System.out.println("      (" + k + "/" + extractors.size() + ") " + extractor.getClass().getSimpleName()
                                 + " skipped due to incompatibility with " + source.getType());
@@ -74,8 +90,17 @@ public class ScanPipeline {
                 System.out.println();
             }
 
-            System.out.println("    Retained root artifacts: " + artifactWriter.getWrittenCount() + "\n");
+            rootArtifactCount = artifactWriter.getWrittenCount();
+            System.out.println("    Retained root artifacts: " + rootArtifactCount + "\n");
         }
+
+        metrics.add(new ScanMetric(
+            "extraction_total",
+            "all_extractors",
+            stageWatch.elapsedMillis(),
+            rootArtifactCount,
+            "root artifacts retained"
+        ));
 
         System.out.println("Total extraction time: " + stageWatch.elapsedText() + "\n");
 
@@ -86,6 +111,8 @@ public class ScanPipeline {
         Path currentArtifactsPath = rootArtifactsPath;
 
         int detectorStage = 1;
+        long totalDetectorOutputCount = 0;
+
         for (int i = 1; i <= detectors.size(); i++) {
             Stopwatch detectionWatch = Stopwatch.startNew();
             Detector detector = detectors.get(i - 1);
@@ -95,12 +122,24 @@ public class ScanPipeline {
                             + detector.getClass().getSimpleName() + ".ndjson"
             );
 
+            long detectorOutputCount;
+
             try (
                 ArtifactReader inputArtifacts = new NdjsonArtifactReader(currentArtifactsPath);
                 ArtifactWriter outputArtifacts = new NdjsonArtifactWriter(nextArtifactsPath);
             ) {
                 detector.detect(inputArtifacts, outputArtifacts, config);
+                detectorOutputCount = outputArtifacts.getWrittenCount();
+                totalDetectorOutputCount += detectorOutputCount;
             }
+
+            metrics.add(new ScanMetric(
+                "detection",
+                detector.getClass().getSimpleName(),
+                detectionWatch.elapsedMillis(),
+                detectorOutputCount, 
+                "output=" + nextArtifactsPath.getFileName()
+            ));
 
             System.out.println("        (" + i + "/" + detectors.size() + ") " + detector.getClass().getSimpleName()
                     + " completed in " + detectionWatch.elapsedText() + "\n");
@@ -111,6 +150,14 @@ public class ScanPipeline {
         Path finalArtifactsPath = config.getOutputDir().resolve(ReportPaths.FINAL_ARTIFACTS_NDJSON);
         Files.copy(currentArtifactsPath, finalArtifactsPath, StandardCopyOption.REPLACE_EXISTING);
 
+        metrics.add(new ScanMetric(
+                "detection_total",
+                "all_detectors",
+                stageWatch.elapsedMillis(),
+                totalDetectorOutputCount,
+                "finalArtifactFile=" + finalArtifactsPath.getFileName()
+        ));
+
         System.out.println("Total detection time: " + stageWatch.elapsedText() + "\n");
 
         // Correlation Stage
@@ -119,20 +166,37 @@ public class ScanPipeline {
 
         List<Cluster> clusters = new ArrayList<>();
 
-        
         for (int i = 1; i <= correlators.size(); i++) {
-            try (
-                ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath);
-            ) {
-                Stopwatch correlationWatch = Stopwatch.startNew();
-                Correlator correlator = correlators.get(i - 1);
+            Stopwatch correlationWatch = Stopwatch.startNew();
+            Correlator correlator = correlators.get(i - 1);
 
+            int beforeClusterCount = clusters.size();
+
+            try (ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath)) {
                 clusters.addAll(correlator.correlate(artifactReader, config));
-
-                System.out.println("    (" + i + "/" + correlators.size() + ") " + correlator.getClass().getSimpleName() 
-                        + " completed in " + correlationWatch.elapsedText());
             }
+
+            int producedClusterCount = clusters.size() - beforeClusterCount;
+
+            metrics.add(new ScanMetric(
+                    "correlation",
+                    correlator.getClass().getSimpleName(),
+                    correlationWatch.elapsedMillis(),
+                    producedClusterCount,
+                    "clusters produced"
+            ));
+
+            System.out.println("    (" + i + "/" + correlators.size() + ") " + correlator.getClass().getSimpleName() 
+                        + " completed in " + correlationWatch.elapsedText());
         }
+
+        metrics.add(new ScanMetric(
+                "correlation_total",
+                "all_correlators",
+                stageWatch.elapsedMillis(),
+                clusters.size(),
+                "completed cluster production"
+        ));
 
         System.out.println("\nTotal correlation time: " + stageWatch.elapsedText() + "\n");
 
@@ -146,11 +210,31 @@ public class ScanPipeline {
             Stopwatch hypothesizeWatch = Stopwatch.startNew();
             HypothesisGenerator hypothesisGenerator = hypothesisGenerators.get(i - 1);
 
+            int beforeHypothesisCount = hypotheses.size();
+
             hypotheses.addAll(hypothesisGenerator.generate(clusters, config));
+
+            int producedHypothesisCount = hypotheses.size() - beforeHypothesisCount;
+
+            metrics.add(new ScanMetric(
+                    "hypothesis_generation", 
+                    hypothesisGenerator.getClass().getSimpleName(), 
+                    hypothesizeWatch.elapsedMillis(), 
+                    producedHypothesisCount, 
+                    "hypotheses produced"
+            ));
             
             System.out.println("    (" + i + "/" + hypothesisGenerators.size() + ") " + hypothesisGenerator.getClass().getSimpleName() 
                     + " completed in " + hypothesizeWatch.elapsedText());
         }
+
+        metrics.add(new ScanMetric(
+                "hypothesis_generation_total", 
+                "all_hypothesis_generators", 
+                stageWatch.elapsedMillis(), 
+                hypotheses.size(), 
+                "completed hypotheses production"
+        ));
 
         System.out.println("\nTotal hypothesis generation time: " + stageWatch.elapsedText());
 
@@ -158,10 +242,30 @@ public class ScanPipeline {
         stageWatch = Stopwatch.startNew();
 
         for (Reporter reporter : reporters) {
+            Stopwatch reporterWatch = Stopwatch.startNew();
+
             try (ArtifactReader artifactReader = new NdjsonArtifactReader(finalArtifactsPath)) {
                 reporter.report(artifactReader, clusters, hypotheses, config);
             }
+
+            metrics.add(new ScanMetric(
+                "reporting", 
+                reporter.getClass().getSimpleName(), 
+                reporterWatch.elapsedMillis(), 
+                -1, 
+                "report generated"
+            ));
         }
+
+        metrics.add(new ScanMetric(
+                "total",
+                "scan",
+                totalWatch.elapsedMillis(),
+                -1,
+                "complete scan runtime"
+        ));
+
+        new ScanMetricsWriter().write(metrics, config.getOutputDir());
 
         System.out.println("\nReporting completed in " + stageWatch.elapsedText());
         System.out.println("\nSuccess! Total scan completed in " + totalWatch.elapsedText() + "\n");
