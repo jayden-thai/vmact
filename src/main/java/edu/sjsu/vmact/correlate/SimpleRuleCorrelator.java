@@ -20,9 +20,6 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 public class SimpleRuleCorrelator implements Correlator {
     @Override
     public List<Cluster> correlate(ArtifactReader artifactReader, ScanConfig config) throws Exception {
-        // Preserve root encounter order deterministically without relying on child locality.
-        Map<String, Artifact> rootArtifactsById = new LinkedHashMap<>();
-
         // Derived artifacts are grouped by parentArtifactId, regardless of where they appear in the stream.
         Map<String, List<Artifact>> derivedArtifactsByParentId = new LinkedHashMap<>();
 
@@ -31,23 +28,20 @@ public class SimpleRuleCorrelator implements Correlator {
                 derivedArtifactsByParentId
                         .computeIfAbsent(artifact.getParentArtifactId(), ignored -> new ArrayList<>())
                         .add(artifact);
-            } else {
-                rootArtifactsById.put(artifact.getId(), artifact);
             }
         });
 
         List<Cluster> clusters = new ArrayList<>();
 
-        for (Map.Entry<String, Artifact> entry : rootArtifactsById.entrySet()) {
-            String rootArtifactId = entry.getKey();
-            Artifact rootArtifact = entry.getValue();
-
-            List<Artifact> derivedArtifacts = derivedArtifactsByParentId.get(rootArtifactId);
-
-            if (derivedArtifacts != null && !derivedArtifacts.isEmpty()) {
-                clusters.add(buildCluster(rootArtifact, derivedArtifacts, config));
+        artifactReader.forEach(artifact -> {
+            if (!artifact.isDerived() && derivedArtifactsByParentId.containsKey(artifact.getId())) {
+                clusters.add(buildCluster(
+                    artifact, 
+                    derivedArtifactsByParentId.get(artifact.getId()), 
+                    config
+                ));
             }
-        }
+        });
 
         return clusters;
     }
