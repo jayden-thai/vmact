@@ -28,22 +28,27 @@ public class KeywordDetector implements Detector{
                 return;
             }
 
-            String lowercaseValue = artifact.getValue().toLowerCase(Locale.ROOT);
+            String value = artifact.getValue();
+            String lowercaseValue = value.toLowerCase(Locale.ROOT);
 
-            for (String keyword : lowercaseKeywords) {
-                if (lowercaseValue.contains(keyword)) {
+            for (String lowercaseKeyword : lowercaseKeywords) {
+                int matchStart = lowercaseValue.indexOf(lowercaseKeyword);
+
+                if (matchStart >= 0) {
+                    int matchEnd = matchStart + lowercaseKeyword.length();
+
                     outputArtifacts.write(new Artifact(
                         config.nextArtifactId(),
                         artifact.getId(),
                         ArtifactType.KEYWORD_HIT, 
-                        keyword, 
+                        lowercaseKeyword, 
                         artifact.getSourceId(),
                         artifact.getSourceName(),
                         artifact.getSourceType(),
                         "keyword-detector", 
                         artifact.getEncoding(), 
                         artifact.getOffset(), 
-                        artifact.getValue(), 
+                        contextWindow(artifact.getValue(), matchStart, matchEnd, 200), 
                         0.90
                     ));
                 }
@@ -51,6 +56,13 @@ public class KeywordDetector implements Detector{
         });
         System.out.println("    KeywordDetector wrote artifacts: " + outputArtifacts.getWrittenCount());
         
+    }
+
+    private String contextWindow(String value, int start, int end, int radius) {
+        int contextStart = Math.max(0, start - radius);
+        int contextEnd = Math.min(value.length(), end + radius);
+
+        return value.substring(contextStart, contextEnd);
     }
 
     private List<String> loadLowercaseKeywords(ScanConfig config) throws IOException{

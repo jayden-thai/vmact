@@ -1,5 +1,7 @@
 package edu.sjsu.vmact.detect;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,7 +29,7 @@ public class RegexArtifactDetector implements Detector{
     );
 
     private static final Pattern LINUX_FILE_PATH_PATTERN = Pattern.compile(
-            "/(?:home|media|usr|etc|var|tmp|opt|mnt|run|dev)/[^\\s\"'<>]+"
+            "/(?:home|media|mnt)/[^\\\\s\\\"'<>]+"
     );
 
     private static final Pattern DEVICE_ID_PATTERN = Pattern.compile(
@@ -47,12 +49,14 @@ public class RegexArtifactDetector implements Detector{
 
             // only checks root artifacts to avoid needless artifact inflation
             if (artifact.getType() == ArtifactType.RAW_STRING) {
-                detectPattern(config, outputArtifacts, artifact, EMAIL_PATTERN, ArtifactType.EMAIL, 0.85);
-                detectPattern(config, outputArtifacts, artifact, URL_PATTERN, ArtifactType.URL, 0.85);
-                detectPattern(config, outputArtifacts, artifact, WINDOWS_FILE_PATH_PATTERN, ArtifactType.WINDOWS_FILE_PATH, 0.80);
-                detectPattern(config, outputArtifacts, artifact, LINUX_FILE_PATH_PATTERN, ArtifactType.LINUX_FILE_PATH, 0.80);
-                detectPattern(config, outputArtifacts, artifact, FILE_URI_PATTERN, ArtifactType.FILE_URI, 0.80);
-                detectPattern(config, outputArtifacts, artifact, DEVICE_ID_PATTERN, ArtifactType.DEVICE_ID, 0.90);
+                Set<String> emittedForParent = new HashSet<>();
+
+                detectPattern(config, outputArtifacts, artifact, EMAIL_PATTERN, ArtifactType.EMAIL, 0.85, emittedForParent);
+                detectPattern(config, outputArtifacts, artifact, URL_PATTERN, ArtifactType.URL, 0.85, emittedForParent);
+                detectPattern(config, outputArtifacts, artifact, WINDOWS_FILE_PATH_PATTERN, ArtifactType.WINDOWS_FILE_PATH, 0.80, emittedForParent);
+                detectPattern(config, outputArtifacts, artifact, LINUX_FILE_PATH_PATTERN, ArtifactType.LINUX_FILE_PATH, 0.80, emittedForParent);
+                detectPattern(config, outputArtifacts, artifact, FILE_URI_PATTERN, ArtifactType.FILE_URI, 0.80, emittedForParent);
+                detectPattern(config, outputArtifacts, artifact, DEVICE_ID_PATTERN, ArtifactType.DEVICE_ID, 0.90, emittedForParent);
             }
         });
 
@@ -66,28 +70,39 @@ public class RegexArtifactDetector implements Detector{
             Artifact parentArtifact,
             Pattern pattern,
             ArtifactType artifactType,
-            double confidence
+            double confidence,
+            Set<String> emittedForParent
     ) throws Exception {
         Matcher matcher = pattern.matcher(parentArtifact.getValue());
 
         while (matcher.find()) {
             String matchedValue = matcher.group();
+            String dedupeKey = artifactType.name() + "\u0000" + matchedValue;
 
-            outputArtifacts.write(new Artifact(
-                config.nextArtifactId(),
-                parentArtifact.getId(), 
-                artifactType, 
-                matchedValue, 
-                parentArtifact.getSourceId(),
-                parentArtifact.getSourceName(),
-                parentArtifact.getSourceType(),
-                "regex-detector", 
-                parentArtifact.getEncoding(),
-                calculateDerivedOffset(parentArtifact, matcher.start()), 
-                parentArtifact.getValue(), 
-                confidence
-            ));
+            if (!emittedForParent.add(dedupeKey)) {
+                outputArtifacts.write(new Artifact(
+                    config.nextArtifactId(),
+                    parentArtifact.getId(), 
+                    artifactType, 
+                    matchedValue, 
+                    parentArtifact.getSourceId(),
+                    parentArtifact.getSourceName(),
+                    parentArtifact.getSourceType(),
+                    "regex-detector", 
+                    parentArtifact.getEncoding(),
+                    calculateDerivedOffset(parentArtifact, matcher.start()), 
+                    contextWindow(parentArtifact.getValue(), matcher.start(), matcher.end(), 200), 
+                    confidence
+                ));
+            }
         }
+    }
+
+    private String contextWindow(String value, int start, int end, int radius) {
+        int contextStart = Math.max(0, start - radius);
+        int contextEnd = Math.min(value.length(), end + radius);
+
+        return value.substring(contextStart, contextEnd);
     }
 
     private long calculateDerivedOffset(Artifact parentArtifact, int matchStartIndex) {
