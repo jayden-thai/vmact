@@ -4,11 +4,15 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import edu.sjsu.vmact.extract.ArtifactReader;
 import edu.sjsu.vmact.model.Artifact;
+import edu.sjsu.vmact.model.ArtifactType;
 import edu.sjsu.vmact.model.Cluster;
 import edu.sjsu.vmact.model.Hypothesis;
 import edu.sjsu.vmact.model.RuleId;
@@ -20,6 +24,29 @@ import edu.sjsu.vmact.pipeline.ScanConfig;
 
 public class MarkdownReporter implements Reporter {
     private static final int MAX_VALUE_LENGTH = 300;
+    private static final int MAX_CLUSTERS_PER_SUBCLAIM = 10;
+    private static final int MAX_ARTIFACTS_PER_CLUSTER = 5; 
+    private static final int MAX_VALUE_SUMMARIES = 25;
+
+    private static class ValueSummary {
+        private final ArtifactType type;
+        private final String value;
+        private int count;
+        private final List<String> representativeArtifactIds = new ArrayList<>();
+
+        private ValueSummary(ArtifactType type, String value) {
+            this.type = type;
+            this.value = value;
+        }
+
+        private void add(String artifactId) {
+            count++;
+
+            if (representativeArtifactIds.size() < 5) {
+                representativeArtifactIds.add(artifactId);
+            }
+        }
+    }
 
     @Override
     public void report(
@@ -34,6 +61,7 @@ public class MarkdownReporter implements Reporter {
 
         try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
             writeHeader(writer, artifactReader.count(), clusters, hypotheses);
+            writeValueSummary(writer, clusters);
             writeHypotheses(writer, hypotheses, clusters);
             writeAppendix(writer);
         }
@@ -64,6 +92,104 @@ public class MarkdownReporter implements Reporter {
         writer.write("> Confidence values should be interpreted as rule-based evidentiary support scores, not probabilities that an activity occurred.");
         writer.newLine();
         writer.newLine();
+    }
+
+    private void writeValueSummary(
+            BufferedWriter writer,
+            List<Cluster> clusters
+    ) throws IOException {
+        Map<String, ValueSummary> summaries = new LinkedHashMap<>();
+
+        for (Cluster cluster : clusters) {
+            for (Artifact artifact : cluster.getArtifacts()) {
+                if (!(artifact.getType() == ArtifactType.RAW_STRING
+                        || artifact.getType() == ArtifactType.KEYWORD_HIT)) {
+                    String key = artifact.getType().name() + "\u0000" + artifact.getValue();
+
+                    ValueSummary summary = summaries.computeIfAbsent(
+                            key,
+                            ignored -> new ValueSummary(artifact.getType(), artifact.getValue())
+                    );
+
+                    summary.add(artifact.getId());
+                }
+            }
+        }
+
+        writer.write("## Recovered Value Summary");
+        writer.newLine();
+        writer.newLine();
+
+        int written = 0;
+        List<ValueSummary> summaryList = new ArrayList<>();
+        summaryList.addAll(summaries.values());
+
+        for (int i = 0; written <= MAX_VALUE_SUMMARIES && i < summaryList.size(); i++) {
+            ValueSummary summary = summaryList.get(i);
+            if (summary.count >= 2) {
+                if (written >= MAX_VALUE_SUMMARIES) {
+                    writer.write("- Additional repeated values omitted from this summary. See artifacts.csv for full details.");
+                    writer.newLine();
+                } else {
+                    writer.write("- `" + escapeMarkdown(summary.value) + "`");
+                    writer.newLine();
+                    writer.write("  - Type: `" + summary.type.name() + "`");
+                    writer.newLine();
+                    writer.write("  - Occurrences in clustered artifacts: " + summary.count);
+                    writer.newLine();
+                    writer.write("  - Representative artifact IDs: `" + String.join("`, `", summary.representativeArtifactIds) + "`");
+                    writer.newLine();
+
+                    String interpretation = interpretRepeatedValue(summary);
+
+                    if (!interpretation.isBlank()) {
+                        writer.write("  - Interpretation note: " + interpretation);
+                        writer.newLine();
+                    }
+
+                    writer.newLine();
+                }
+
+                written++;
+            }
+        }
+
+        if (written == 0) {
+            writer.write("- No repeated non-raw artifact values were summarized.");
+            writer.newLine();
+        }
+
+        writer.newLine();
+    }
+
+    private String interpretRepeatedValue(ValueSummary summary) {
+        String value = summary.value.toLowerCase(Locale.ROOT);
+
+        if (summary.type == ArtifactType.EMAIL && (
+                value.contains("@1000.service")
+                        || value.contains("mozilla.org")
+                        || value.contains("raymondhill.net")
+                        || value.contains("gnome")
+        )) {
+            return "This appears to be an email-shaped software or system identifier rather than a direct user account trace.";
+        }
+
+        if (summary.type == ArtifactType.URL && (
+                value.contains("http://")
+                        || value.contains("https://")
+        )) {
+            return "Repeated URL presence indicates repeated recovery in memory, not necessarily repeated user visits.";
+        }
+
+        return "";
+    }
+
+    private String escapeMarkdown(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value.replace("`", "\\`");
     }
 
     private void writeHypotheses(
@@ -182,10 +308,17 @@ public class MarkdownReporter implements Reporter {
         writer.write("  - Supporting clusters:");
         writer.newLine();
 
-        for (String clusterId : subclaim.getSupportingClusterIds()) {
+        List<String> supportingClusterIds = subclaim.getSupportingClusterIds();
+
+        // only display ten clusters per subclaim to preserve readability
+        for (int i = 0; i <= MAX_CLUSTERS_PER_SUBCLAIM && i < supportingClusterIds.size(); i++) {
+            String clusterId = supportingClusterIds.get(i);
             Cluster cluster = findClusterById(clusters, clusterId);
 
-            if (cluster == null) {
+            if (i == MAX_CLUSTERS_PER_SUBCLAIM) {
+                int omittedCount = supportingClusterIds.size() - (i + 1);
+                writer.write("    - " + omittedCount + " additional supporting cluster(s) omitted from this summary. See clusters.csv for full details.");
+            } else if (cluster == null) {
                 writer.write("    - " + clusterId + " not found in current cluster list.");
                 writer.newLine();
             } else {
@@ -246,8 +379,18 @@ public class MarkdownReporter implements Reporter {
         writer.write("      - Artifacts:");
         writer.newLine();
 
-        for (Artifact artifact : cluster.getArtifacts()) {
-            writeArtifactSummary(writer, artifact);
+        List<Artifact> clusterArtifacts = cluster.getArtifacts();
+
+        for (int i = 0; i <= MAX_ARTIFACTS_PER_CLUSTER && i < clusterArtifacts.size(); i++) {
+            Artifact artifact = clusterArtifacts.get(i);
+
+
+            if (i == MAX_ARTIFACTS_PER_CLUSTER) {
+                int omittedCount = clusterArtifacts.size() - (i + 1);
+                writer.write("    - " + omittedCount + " additional supporting cluster(s) omitted from this summary. See clusters.csv for full details.");
+            } else {
+                writeArtifactSummary(writer, artifact);
+            }
         }
     }
 
