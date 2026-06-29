@@ -142,7 +142,7 @@ public class SimpleRuleCorrelator implements Correlator {
         }
 
         if (containsAnyType(derivedArtifacts, ArtifactType.EMAIL)) {
-            return "Possible email/account artifact";
+            return "Email-shaped identifier";
         }
 
         if (containsAnyType(derivedArtifacts, ArtifactType.KEYWORD_HIT)) {
