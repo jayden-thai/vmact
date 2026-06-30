@@ -22,6 +22,7 @@ import edu.sjsu.vmact.model.ScoreComponent;
 import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.model.Subclaim;
 import edu.sjsu.vmact.pipeline.ScanConfig;
+import edu.sjsu.vmact.rules.ArtifactSignalRules;
 
 public class MarkdownReporter implements Reporter {
     private static final int MAX_VALUE_LENGTH = 300;
@@ -33,7 +34,6 @@ public class MarkdownReporter implements Reporter {
         private final ArtifactType type;
         private final String value;
         private int count;
-        private int priority;
         private final List<String> representativeArtifactIds = new ArrayList<>();
 
         private ValueSummary(ArtifactType type, String value) {
@@ -102,8 +102,7 @@ public class MarkdownReporter implements Reporter {
 
         for (Cluster cluster : clusters) {
             for (Artifact artifact : cluster.getArtifacts()) {
-                if (!(artifact.getType() == ArtifactType.RAW_STRING
-                        || artifact.getType() == ArtifactType.KEYWORD_HIT)) {
+                if (!(artifact.getType() == ArtifactType.RAW_STRING)) {
                     String key = artifact.getType().name() + "\u0000" + artifact.getValue();
 
                     ValueSummary summary = summaries.computeIfAbsent(
@@ -120,44 +119,47 @@ public class MarkdownReporter implements Reporter {
         writer.newLine();
 
         int written = 0;
-        PriorityQueue<ValueSummary> summaryHeap = new PriorityQueue<>((a, b) -> valueSummaryPriority(a) - valueSummaryPriority(b));
+        boolean hasMoreRepeatedValues = false;
+
+        PriorityQueue<ValueSummary> summaryHeap = new PriorityQueue<>(
+                (first, second) -> Integer.compare(
+                        valueSummaryPriority(second),
+                        valueSummaryPriority(first)));
+
         summaryHeap.addAll(summaries.values());
 
-        while(!summaryHeap.isEmpty() && written <= MAX_VALUE_SUMMARIES) {
+        while (!summaryHeap.isEmpty() && !hasMoreRepeatedValues) {
             ValueSummary summary = summaryHeap.remove();
-            if (summary.count >= 2) {
-                if (written >= MAX_VALUE_SUMMARIES) {
-                    writer.write(
-                            "- Additional repeated values omitted from this summary. See artifacts.csv for full details.");
-                    writer.newLine();
-                } else {
-                    writer.write("- `" + escapeMarkdown(summary.value) + "`");
-                    writer.newLine();
-                    writer.write("  - Type: `" + summary.type.name() + "`");
-                    writer.newLine();
-                    writer.write("  - Occurrences in clustered artifacts: " + summary.count);
-                    writer.newLine();
-                    writer.write("  - Representative artifact IDs: `"
-                            + String.join("`, `", summary.representativeArtifactIds) + "`");
-                    writer.newLine();
 
-                    String interpretation = interpretRepeatedValue(summary);
-
-                    if (!interpretation.isBlank()) {
-                        writer.write("  - Interpretation note: " + interpretation);
-                        writer.newLine();
-                    }
-
-                    writer.newLine();
-                }
-
-                // increment written even at max written count to break loop
+            if (summary.count >= 2 && written < MAX_VALUE_SUMMARIES) {
+                writeValueSummaryItem(writer, summary);
                 written++;
+            } else if (summary.count >= 2) {
+                hasMoreRepeatedValues = true;
             }
         }
 
-        if (written == 0) {
-            writer.write("- No repeated non-raw artifact values were summarized.");
+        if (hasMoreRepeatedValues) {
+            writer.write("- Additional repeated values omitted from this summary. See artifacts.csv for full details.");
+            writer.newLine();
+        }
+    }
+
+    private void writeValueSummaryItem(BufferedWriter writer, ValueSummary summary) throws IOException {
+        writer.write("- `" + escapeMarkdown(summary.value) + "`");
+        writer.newLine();
+        writer.write("  - Type: `" + summary.type.name() + "`");
+        writer.newLine();
+        writer.write("  - Occurrences in clustered artifacts: " + summary.count);
+        writer.newLine();
+        writer.write("  - Representative artifact IDs: `"
+                + String.join("`, `", summary.representativeArtifactIds) + "`");
+        writer.newLine();
+
+        String interpretation = interpretRepeatedValue(summary);
+
+        if (!interpretation.isBlank()) {
+            writer.write("  - Interpretation note: " + interpretation);
             writer.newLine();
         }
 
@@ -165,88 +167,122 @@ public class MarkdownReporter implements Reporter {
     }
 
     private int valueSummaryPriority(ValueSummary summary) {
-        int score = 0;
-        String value = safe(summary.value).toLowerCase(Locale.ROOT);
+        String lowercaseValue = safe(summary.value).toLowerCase(Locale.ROOT);
+        int score = baseTypePriority(summary.type);
 
-        if (summary.type == ArtifactType.KEYWORD_HIT) {
-            score += 100;
-        }
+        score += highSignalBonus(lowercaseValue);
+        score -= lowSignalPenalty(summary.type, lowercaseValue);
 
-        if (summary.type == ArtifactType.DEVICE_ID) {
-            score += 90;
-        }
-
-        if (summary.type == ArtifactType.URL) {
-            score += 75;
-        }
-
-        if (summary.type == ArtifactType.FILE_URI) {
-            score += 70;
-        }
-
-        if (summary.type == ArtifactType.WINDOWS_FILE_PATH || summary.type == ArtifactType.LINUX_FILE_PATH) {
-            score += 60;
-        }
-
-        if (summary.type == ArtifactType.EMAIL) {
-            score += 50;
-        }
-
-        if (isLowValueRepeatedSummary(summary)) {
-            score -= 100;
-        }
-
-        if (containsAny(value, "/home/", "/media/amnesia/", "/mnt/", "downloads", "documents", ".java", ".pdf", ".doc",
-                ".ods")) {
-            score += 30;
-        }
-
-        if (containsAny(value, "/usr/", "/etc/", "/run/", "/var/", "/dev/", "/media/common/")) {
-            score -= 40;
-        }
-
+        // repetition is useful, but cap it so noisy repeated constants do not dominate.
         score += Math.min(summary.count, 10);
 
         return score;
     }
 
-    private boolean isLowValueRepeatedSummary(ValueSummary summary) {
-        String value = safe(summary.value).toLowerCase(Locale.ROOT);
-
-        if (summary.type == ArtifactType.LINUX_FILE_PATH) {
-            return value.equals("/media/common/")
-                    || value.equals("/media/common")
-                    || value.equals("/usr/")
-                    || value.equals("/etc/")
-                    || value.equals("/run/")
-                    || value.equals("/var/")
-                    || value.equals("/dev/");
+    private int baseTypePriority(ArtifactType type) {
+        if (type == ArtifactType.KEYWORD_HIT) {
+            return 100;
         }
 
-        if (summary.type == ArtifactType.EMAIL) {
-            return containsAny(
-                    value,
-                    "@1000.service",
-                    "toolkit@mozilla.org",
-                    "raymondhill.net",
-                    "automated-testing@tails.net");
+        if (type == ArtifactType.DEVICE_ID) {
+            return 90;
         }
 
-        return false;
+        if (type == ArtifactType.URL) {
+            return 75;
+        }
+
+        if (type == ArtifactType.FILE_URI) {
+            return 70;
+        }
+
+        if (type == ArtifactType.WINDOWS_FILE_PATH || type == ArtifactType.LINUX_FILE_PATH) {
+            return 60;
+        }
+
+        if (type == ArtifactType.EMAIL) {
+            return 50;
+        }
+
+        return 10;
+    }
+
+    private int highSignalBonus(String lowercaseValue) {
+        int bonus = 0;
+
+        if (ArtifactSignalRules.isHighSignalUserPath(lowercaseValue)) {
+            bonus += 30;
+        }
+
+        if (ArtifactSignalRules.hasHighSignalEmailProvider(lowercaseValue)) {
+            bonus += 30;
+        }
+
+        if (ArtifactSignalRules.hasHighSignalFileExtension(lowercaseValue)) {
+            bonus += 20;
+        }
+
+        return bonus;
+    }
+
+    private int lowSignalPenalty(ArtifactType type, String lowercaseValue) {
+        int penalty = 0;
+
+        if (isTriviallyShortOrGenericPath(type, lowercaseValue)) {
+            penalty += 100;
+        }
+
+        if (type == ArtifactType.URL
+                && ArtifactSignalRules.isLowSignalTechnicalUrl(lowercaseValue)) {
+            penalty += 80;
+        }
+
+        if (type == ArtifactType.EMAIL
+                && ArtifactSignalRules.isLowSignalSoftwareEmail(lowercaseValue)) {
+            penalty += 80;
+        }
+
+        if ((type == ArtifactType.LINUX_FILE_PATH
+                || type == ArtifactType.WINDOWS_FILE_PATH
+                || type == ArtifactType.FILE_URI)
+                && ArtifactSignalRules.isLowSignalSystemPath(lowercaseValue)) {
+            penalty += 40;
+        }
+
+        return penalty;
+    }
+
+    private boolean isTriviallyShortOrGenericPath(ArtifactType type, String lowercaseValue) {
+        if (type != ArtifactType.LINUX_FILE_PATH
+                && type != ArtifactType.WINDOWS_FILE_PATH
+                && type != ArtifactType.FILE_URI) {
+            return false;
+        }
+
+        return lowercaseValue.equals("/media/common/")
+                || lowercaseValue.equals("/media/common")
+                || lowercaseValue.equals("/usr/")
+                || lowercaseValue.equals("/etc/")
+                || lowercaseValue.equals("/run/")
+                || lowercaseValue.equals("/var/")
+                || lowercaseValue.equals("/dev/")
+                || lowercaseValue.equals("/tmp/");
     }
 
     private String interpretRepeatedValue(ValueSummary summary) {
-        String value = summary.value.toLowerCase(Locale.ROOT);
+        String lowercaseValue = safe(summary.value).toLowerCase(Locale.ROOT);
 
-        if (summary.type == ArtifactType.EMAIL && (value.contains("@1000.service")
-                || value.contains("mozilla.org")
-                || value.contains("raymondhill.net")
-                || value.contains("gnome"))) {
-            return "This appears to be an email-shaped software or system identifier rather than a direct user account trace.";
+        if (summary.type == ArtifactType.URL
+                && ArtifactSignalRules.isLowSignalTechnicalUrl(lowercaseValue)) {
+            return "This appears to be a schema, XML namespace, ontology, or embedded technical identifier rather than direct browsing evidence.";
         }
 
-        if (summary.type == ArtifactType.URL && (value.contains("http://")
-                || value.contains("https://"))) {
+        if (summary.type == ArtifactType.EMAIL
+                && ArtifactSignalRules.isLowSignalSoftwareEmail(lowercaseValue)) {
+            return "This appears to be an email-shaped software, service, or automated identifier rather than direct account evidence.";
+        }
+
+        if (summary.type == ArtifactType.URL) {
             return "Repeated URL presence indicates repeated recovery in memory, not necessarily repeated user visits.";
         }
 
@@ -548,18 +584,6 @@ public class MarkdownReporter implements Reporter {
         }
 
         return null;
-    }
-
-    private boolean containsAny(String value, String... needles) {
-        String lowerValue = value.toLowerCase(Locale.ROOT);
-
-        for (String needle : needles) {
-            if (lowerValue.contains(needle.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private String inlineList(List<String> values) {
