@@ -3,6 +3,7 @@ package edu.sjsu.vmact.hypothesize;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -31,7 +32,10 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         ClusterBuckets buckets = bucketClusters(clusters);
         List<Subclaim> subclaims = new ArrayList<>();
 
-        addIfPresent(subclaims, buildAccountIdentifierSubclaim(buckets.emailClusters, config));
+        List<Cluster> likelyAccountEmailClusters =
+                filterLikelyAccountEmailClusters(buckets.emailClusters);
+
+        addIfPresent(subclaims, buildAccountIdentifierSubclaim(likelyAccountEmailClusters, config));        
         addIfPresent(subclaims, buildUrlRecoveredSubclaim(buckets.urlClusters, config));
         addIfPresent(subclaims, buildFilePathRecoveredSubclaim(buckets.filePathClusters, config));
         addIfPresent(subclaims, buildDeviceIdentifierSubclaim(buckets.deviceIdClusters, config));
@@ -97,6 +101,123 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             "This supports account or communication trace presence, but does not prove successful login, message access, or message transmission.",
             config
         );
+    }
+
+    private List<Cluster> filterLikelyAccountEmailClusters(List<Cluster> emailClusters) {
+        List<Cluster> filteredClusters = new ArrayList<>();
+
+        for (Cluster cluster : emailClusters) {
+            if (isLikelyAccountOrCommunicationEmailCluster(cluster)) {
+                filteredClusters.add(cluster);
+            }
+        }
+
+        return filteredClusters;
+    }
+
+    private boolean isLikelyAccountOrCommunicationEmailCluster(Cluster cluster) {
+        String text = clusterText(cluster);
+
+        if (isClearlySystemOrSoftwareEmailCluster(text)) {
+            return false;
+        }
+
+        if (hasCommunicationContext(text)) {
+            return true;
+        }
+
+        if (hasUserAccountProvider(cluster)) {
+            return true;
+        }
+
+        if (clusterContainsAnyType(cluster, ArtifactType.KEYWORD_HIT)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private boolean isClearlySystemOrSoftwareEmailCluster(String text) {
+        return containsAny(
+                text,
+                "@1000.service",
+                ".service",
+                "user.slice",
+                "systemd",
+                "cgroup",
+                "managedoom",
+                "oom",
+                "gnome-shell-extension",
+                "gnome-shell-extensions",
+                "toolkit@mozilla.org",
+                "mozilla.org",
+                "raymondhill.net",
+                "ublock",
+                "cpan.org",
+                "automated-testing@tails.net",
+                "tails automated testing",
+                "/usr/",
+                "/etc/",
+                "/run/",
+                "/var/",
+                "package",
+                "copyright",
+                "license"
+        );
+    }
+
+    private boolean hasCommunicationContext(String text) {
+        return containsAny(
+                text,
+                "thunderbird",
+                "imap",
+                "smtp",
+                "pop3",
+                "mailbox",
+                "inbox",
+                "sent",
+                "drafts",
+                "message-id",
+                "from:",
+                "to:",
+                "cc:",
+                "bcc:",
+                "reply-to",
+                "account",
+                "login",
+                "auth",
+                "oauth",
+                "password",
+                "prefs.js"
+        );
+    }
+
+    private boolean hasUserAccountProvider(Cluster cluster) {
+        for (Artifact artifact : cluster.getArtifacts()) {
+            if (artifact.getType() == ArtifactType.EMAIL) {
+                String value = artifact.getValue().toLowerCase(Locale.ROOT);
+
+                if (containsAny(
+                        value,
+                        "@gmail.com",
+                        "@googlemail.com",
+                        "@yahoo.com",
+                        "@hotmail.com",
+                        "@outlook.com",
+                        "@live.com",
+                        "@icloud.com",
+                        "@me.com",
+                        "@proton.me",
+                        "@protonmail.com",
+                        "@pm.me",
+                        "@aol.com"
+                )) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private Subclaim buildUrlRecoveredSubclaim(List<Cluster> clusters, ScanConfig config) {
@@ -416,6 +537,183 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             ),
             config
         );
+    }
+
+    private void addJavaFileActivityHypothesis(
+            List<Cluster> clusters,
+            List<Hypothesis> hypotheses,
+            ScanConfig config
+    ) {
+        List<Cluster> javaPathClusters = new ArrayList<>();
+        List<Cluster> javaSourceClusters = new ArrayList<>();
+        List<Cluster> javaAcquisitionClusters = new ArrayList<>();
+
+        for (Cluster cluster : clusters) {
+            String text = clusterText(cluster);
+
+            if (hasJavaFilePathEvidence(cluster, text)) {
+                javaPathClusters.add(cluster);
+            }
+
+            if (hasJavaSourceEvidence(text)) {
+                javaSourceClusters.add(cluster);
+            }
+
+            if (hasJavaAcquisitionContext(text)) {
+                javaAcquisitionClusters.add(cluster);
+            }
+        }
+
+        List<Subclaim> javaSubclaims = new ArrayList<>();
+
+        if (!javaPathClusters.isEmpty()) {
+            javaSubclaims.add(buildSubclaimFromClusters(
+                    SubclaimType.JAVA_FILE_PATH_RECOVERED,
+                    "Java source file path evidence was recovered from supporting clusters.",
+                    javaPathClusters,
+                    "A Java file path indicates memory presence of a Java-related file reference, not authorship, execution, or successful download by itself.",
+                    config
+            ));
+        }
+
+        if (!javaSourceClusters.isEmpty()) {
+            javaSubclaims.add(buildSubclaimFromClusters(
+                    SubclaimType.JAVA_SOURCE_CONTENT_RECOVERED,
+                    "Java source-code-like content was recovered from supporting clusters.",
+                    javaSourceClusters,
+                    "Recovered source-code text may reflect editing, viewing, downloading, cached content, or bundled examples.",
+                    config
+            ));
+        }
+
+        if (!javaAcquisitionClusters.isEmpty()) {
+            javaSubclaims.add(buildSubclaimFromClusters(
+                    SubclaimType.JAVA_WEB_DOWNLOAD_CONTEXT_RECOVERED,
+                    "Java-related web or download context was recovered from supporting clusters.",
+                    javaAcquisitionClusters,
+                    "Download or web context supports possible acquisition or browsing activity, but does not prove a completed download.",
+                    config
+            ));
+        }
+
+        if (javaSubclaims.size() < 2) {
+            return;
+        }
+
+        hypotheses.add(buildHypothesisFromSubclaims(
+                "Possible Java source file acquisition or editing activity",
+                "Multiple complementary memory artifacts support possible Java source file acquisition, viewing, or editing activity.",
+                ActivityType.FILE_ACTIVITY,
+                javaSubclaims,
+                List.of(
+                        "This hypothesis requires multiple complementary Java-related subclaims and should not be interpreted as proof of file execution.",
+                        "Recovered Java content may reflect viewing, editing, downloading, cached content, or example code."
+                ),
+                List.of(
+                        "Java strings may originate from bundled documentation, cached web content, application resources, or unrelated memory residue."
+                ),
+                List.of(RuleId.HYPOTHESIS_FILE_ACTIVITY_TRACE),
+                config
+        ));
+    }
+
+    private boolean hasJavaFilePathEvidence(Cluster cluster, String text) {
+        if (!containsAny(text, ".java")) {
+            return false;
+        }
+
+        return clusterContainsAnyType(
+                cluster,
+                ArtifactType.LINUX_FILE_PATH,
+                ArtifactType.WINDOWS_FILE_PATH,
+                ArtifactType.FILE_URI,
+                ArtifactType.URL
+        );
+    }
+
+    private boolean hasJavaSourceEvidence(String text) {
+        return containsAny(
+                text,
+                "public class ",
+                "class ",
+                "import java.",
+                "package ",
+                "public static void main",
+                "system.out.",
+                "private ",
+                "protected ",
+                "extends ",
+                "implements "
+        );
+    }
+
+    private boolean hasJavaAcquisitionContext(String text) {
+        return containsAny(
+                text,
+                ".java",
+                "download",
+                "downloads",
+                "attachment",
+                "content-disposition",
+                "application/octet-stream",
+                "text/x-java-source",
+                "browser",
+                "cache"
+        ) && containsAny(
+                text,
+                "http://",
+                "https://",
+                "file:///",
+                "/downloads/",
+                "\\downloads\\"
+        );
+    }
+
+    private String clusterText(Cluster cluster) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(nullToEmpty(cluster.getLabel())).append('\n');
+        builder.append(nullToEmpty(cluster.getAnchorValue())).append('\n');
+        builder.append(nullToEmpty(cluster.getClusterTypes())).append('\n');
+        builder.append(nullToEmpty(cluster.getExplanation())).append('\n');
+
+        for (String sourceName : cluster.getSourceNames()) {
+            builder.append(nullToEmpty(sourceName)).append('\n');
+        }
+
+        for (String producerName : cluster.getProducerNames()) {
+            builder.append(nullToEmpty(producerName)).append('\n');
+        }
+
+        for (Artifact artifact : cluster.getArtifacts()) {
+            builder.append(nullToEmpty(artifact.getType().name())).append('\n');
+            builder.append(nullToEmpty(artifact.getValue())).append('\n');
+            builder.append(nullToEmpty(artifact.getContext())).append('\n');
+            builder.append(nullToEmpty(artifact.getSourceName())).append('\n');
+            builder.append(nullToEmpty(artifact.getProducerName())).append('\n');
+        }
+
+        return builder.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private boolean containsAny(String value, String... needles) {
+        String lowerValue = value.toLowerCase(Locale.ROOT);
+
+        for (String needle : needles) {
+            if (lowerValue.contains(needle.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private String nullToEmpty(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value;
     }
 
     private Hypothesis buildHypothesisFromSubclaims(
