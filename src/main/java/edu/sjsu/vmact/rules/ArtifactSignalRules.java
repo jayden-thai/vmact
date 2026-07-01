@@ -57,18 +57,77 @@ public final class ArtifactSignalRules {
             ".txt",
             ".jpg",
             ".png",
-            ".mp3"
+            ".mp3",
+            ".mp4",
+            ".gif"
     };
 
     private static final String[] HIGH_SIGNAL_EMAIL_PROVIDERS = {
-            "@gmail",
-            "@hotmail",
-            "@yahoo",
-            "@outlook",
-            "@icloud",
-            "@aol",
-            "@proton",
-            "@tuta"
+            "@gmail.com",
+            "@googlemail.com",
+            "@yahoo.com",
+            "@hotmail.com",
+            "@outlook.com",
+            "@live.com",
+            "@icloud.com",
+            "@me.com",
+            "@proton.me",
+            "@protonmail.com",
+            "@pm.me",
+            "@aol.com"
+    };
+
+    private static final String[] WEB_ACTIVITY_CONTEXT_TERMS = {
+            "tor browser",
+            "firefox",
+            "browser",
+            "duckduckgo",
+            "search",
+            "query",
+            "urlbar",
+            "history",
+            "bookmark",
+            "bookmarks",
+            "href",
+            "visited",
+            "visit",
+            "download",
+            "downloads",
+            "downloaded",
+            "save link",
+            "content-disposition",
+            "user_pref",
+            "places.sqlite",
+            "cookies.sqlite",
+            "cache",
+            "http cache",
+            "profile.default",
+            "profile",
+            "socks_username",
+            "time_created"
+    };
+
+    private static final String[] COMMUNICATION_CONTEXT_TERMS = {
+            "thunderbird",
+            "imap",
+            "smtp",
+            "pop3",
+            "mailbox",
+            "inbox",
+            "sent",
+            "drafts",
+            "message-id",
+            "from:",
+            "to:",
+            "cc:",
+            "bcc:",
+            "reply-to",
+            "account",
+            "login",
+            "auth",
+            "oauth",
+            "password",
+            "prefs.js"
     };
 
     private ArtifactSignalRules() {
@@ -96,6 +155,14 @@ public final class ArtifactSignalRules {
 
     public static boolean hasHighSignalEmailProvider(String value) {
         return containsAny(value, HIGH_SIGNAL_EMAIL_PROVIDERS);
+    }
+
+    public static boolean hasWebActivityContext(String value) {
+        return containsAny(value, WEB_ACTIVITY_CONTEXT_TERMS);
+    }
+
+    public static boolean hasCommunicationContext(String value) {
+        return containsAny(value, COMMUNICATION_CONTEXT_TERMS);
     }
 
     private static boolean containsAny(String value, String[] needles) {

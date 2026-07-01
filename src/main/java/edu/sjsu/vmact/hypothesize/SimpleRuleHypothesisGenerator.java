@@ -20,23 +20,24 @@ import edu.sjsu.vmact.model.SourceType;
 import edu.sjsu.vmact.model.Subclaim;
 import edu.sjsu.vmact.model.SubclaimType;
 import edu.sjsu.vmact.pipeline.ScanConfig;
+import edu.sjsu.vmact.rules.ArtifactSignalRules;
 
-public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
-    
+public class SimpleRuleHypothesisGenerator implements HypothesisGenerator {
+
     @Override
     public List<Hypothesis> generate(
-        List<Cluster> clusters,
-        ScanConfig config
-    ) throws Exception {
+            List<Cluster> clusters,
+            ScanConfig config) throws Exception {
         List<Hypothesis> hypotheses = new ArrayList<>();
         ClusterBuckets buckets = bucketClusters(clusters);
         List<Subclaim> subclaims = new ArrayList<>();
 
-        List<Cluster> likelyAccountEmailClusters =
-                filterLikelyAccountEmailClusters(buckets.emailClusters);
+        List<Cluster> likelyAccountEmailClusters = filterLikelyAccountEmailClusters(buckets.emailClusters);
 
-        addIfPresent(subclaims, buildAccountIdentifierSubclaim(likelyAccountEmailClusters, config));        
-        addIfPresent(subclaims, buildUrlRecoveredSubclaim(buckets.urlClusters, config));
+        List<Cluster> likelyWebActivityUrlClusters = filterLikelyWebActivityUrlClusters(buckets.urlClusters);
+
+        addIfPresent(subclaims, buildAccountIdentifierSubclaim(likelyAccountEmailClusters, config));
+        addIfPresent(subclaims, buildUrlRecoveredSubclaim(likelyWebActivityUrlClusters, config));
         addIfPresent(subclaims, buildFilePathRecoveredSubclaim(buckets.filePathClusters, config));
         addIfPresent(subclaims, buildDeviceIdentifierSubclaim(buckets.deviceIdClusters, config));
 
@@ -61,11 +62,10 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
             }
 
             if (clusterContainsAnyType(
-                cluster, 
-                ArtifactType.WINDOWS_FILE_PATH,
-                ArtifactType.LINUX_FILE_PATH,
-                ArtifactType.FILE_URI
-            )) {
+                    cluster,
+                    ArtifactType.WINDOWS_FILE_PATH,
+                    ArtifactType.LINUX_FILE_PATH,
+                    ArtifactType.FILE_URI)) {
                 buckets.filePathClusters.add(cluster);
             }
 
@@ -95,12 +95,11 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         }
 
         return buildSubclaimFromClusters(
-            SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED,
-            "Email/account-like identifiers were recovered from supporting evidence clusters.",
-            clusters,
-            "This supports account or communication trace presence, but does not prove successful login, message access, or message transmission.",
-            config
-        );
+                SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED,
+                "Email/account-like identifiers were recovered from supporting evidence clusters.",
+                clusters,
+                "This supports account or communication trace presence, but does not prove successful login, message access, or message transmission.",
+                config);
     }
 
     private List<Cluster> filterLikelyAccountEmailClusters(List<Cluster> emailClusters) {
@@ -118,15 +117,18 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
     private boolean isLikelyAccountOrCommunicationEmailCluster(Cluster cluster) {
         String text = clusterText(cluster);
 
-        if (isClearlySystemOrSoftwareEmailCluster(text)) {
+        if (ArtifactSignalRules.isLowSignalSoftwareEmail(text)
+                && !ArtifactSignalRules.hasCommunicationContext(text)
+                && !ArtifactSignalRules.hasHighSignalEmailProvider(text)
+                && !clusterContainsAnyType(cluster, ArtifactType.KEYWORD_HIT)) {
             return false;
         }
 
-        if (hasCommunicationContext(text)) {
+        if (ArtifactSignalRules.hasCommunicationContext(text)) {
             return true;
         }
 
-        if (hasUserAccountProvider(cluster)) {
+        if (ArtifactSignalRules.hasHighSignalEmailProvider(text)) {
             return true;
         }
 
@@ -137,101 +139,17 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         return false;
     }
 
-    private boolean isClearlySystemOrSoftwareEmailCluster(String text) {
-        return containsAny(
-                text,
-                "@1000.service",
-                ".service",
-                "user.slice",
-                "systemd",
-                "cgroup",
-                "managedoom",
-                "oom",
-                "gnome-shell-extension",
-                "gnome-shell-extensions",
-                "toolkit@mozilla.org",
-                "mozilla.org",
-                "raymondhill.net",
-                "ublock",
-                "cpan.org",
-                "automated-testing@tails.net",
-                "tails automated testing",
-                "/usr/",
-                "/etc/",
-                "/run/",
-                "/var/",
-                "package",
-                "copyright",
-                "license"
-        );
-    }
-
-    private boolean hasCommunicationContext(String text) {
-        return containsAny(
-                text,
-                "thunderbird",
-                "imap",
-                "smtp",
-                "pop3",
-                "mailbox",
-                "inbox",
-                "sent",
-                "drafts",
-                "message-id",
-                "from:",
-                "to:",
-                "cc:",
-                "bcc:",
-                "reply-to",
-                "account",
-                "login",
-                "auth",
-                "oauth",
-                "password",
-                "prefs.js"
-        );
-    }
-
-    private boolean hasUserAccountProvider(Cluster cluster) {
-        for (Artifact artifact : cluster.getArtifacts()) {
-            if (artifact.getType() == ArtifactType.EMAIL) {
-                String value = artifact.getValue().toLowerCase(Locale.ROOT);
-
-                if (containsAny(
-                        value,
-                        "@gmail.com",
-                        "@googlemail.com",
-                        "@yahoo.com",
-                        "@hotmail.com",
-                        "@outlook.com",
-                        "@live.com",
-                        "@icloud.com",
-                        "@me.com",
-                        "@proton.me",
-                        "@protonmail.com",
-                        "@pm.me",
-                        "@aol.com"
-                )) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private Subclaim buildUrlRecoveredSubclaim(List<Cluster> clusters, ScanConfig config) {
-        if (clusters.isEmpty()) {
+    private Subclaim buildUrlRecoveredSubclaim(List<Cluster> supportingClusters, ScanConfig config) {
+        if (supportingClusters.isEmpty()) {
             return null;
         }
 
         return buildSubclaimFromClusters(
-            SubclaimType.URL_RECOVERED,
-            "URL-like values were recovered from supporting evidence clusters.",
-            clusters,
-            "This supports web-related trace presence, but does not independently prove that a page was visited by the user.",
-            config
-        );
+                SubclaimType.URL_RECOVERED,
+                "URL-like values were recovered in contexts that may support web activity interpretation.",
+                supportingClusters,
+                "URL-shaped strings alone do not prove browsing. Technical namespace/schema URLs and embedded software identifiers were excluded from this web-activity interpretation unless stronger browser, search, download, or keyword context was present.",
+                config);
     }
 
     private Subclaim buildFilePathRecoveredSubclaim(List<Cluster> clusters, ScanConfig config) {
@@ -240,12 +158,35 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         }
 
         return buildSubclaimFromClusters(
-            SubclaimType.FILE_PATH_RECOVERED,
-            "File path-like values were recovered from supporting evidence clusters.",
-            clusters,
-            "This supports file-related trace presence, but does not independently prove file creation, editing, deletion, or transfer.",
-            config
-        );
+                SubclaimType.FILE_PATH_RECOVERED,
+                "File path-like values were recovered from supporting evidence clusters.",
+                clusters,
+                "This supports file-related trace presence, but does not independently prove file creation, editing, deletion, or transfer.",
+                config);
+    }
+
+    private List<Cluster> filterLikelyWebActivityUrlClusters(List<Cluster> urlClusters) {
+        List<Cluster> filteredClusters = new ArrayList<>();
+
+        for (Cluster cluster : urlClusters) {
+            if (isLikelyWebActivityUrlCluster(cluster)) {
+                filteredClusters.add(cluster);
+            }
+        }
+
+        return filteredClusters;
+    }
+
+    private boolean isLikelyWebActivityUrlCluster(Cluster cluster) {
+        String text = clusterText(cluster);
+
+        if (ArtifactSignalRules.isLowSignalTechnicalUrl(text)
+                && !ArtifactSignalRules.hasWebActivityContext(text)
+                && !clusterContainsAnyType(cluster, ArtifactType.KEYWORD_HIT)) {
+            return false;
+        }
+
+        return true;
     }
 
     private Subclaim buildDeviceIdentifierSubclaim(List<Cluster> clusters, ScanConfig config) {
@@ -254,81 +195,71 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         }
 
         return buildSubclaimFromClusters(
-            SubclaimType.DEVICE_IDENTIFIER_RECOVERED,
-            "Device identifier-like values were recovered from supporting evidence clusters.",
-            clusters,
-            "This supports device-related trace presence, but does not independently prove file transfer or user intent.",
-            config
-        );
+                SubclaimType.DEVICE_IDENTIFIER_RECOVERED,
+                "Device identifier-like values were recovered from supporting evidence clusters.",
+                clusters,
+                "This supports device-related trace presence, but does not independently prove file transfer or user intent.",
+                config);
     }
 
     private Subclaim buildSubclaimFromClusters(
-        SubclaimType type,
-        String text,
-        List<Cluster> supportingClusters,
-        String caveat,
-        ScanConfig config
-    ) {
+            SubclaimType type,
+            String text,
+            List<Cluster> supportingClusters,
+            String caveat,
+            ScanConfig config) {
         ScoreBreakdown scoreBreakdown = scoreSubclaim(type, supportingClusters);
 
         return new Subclaim(
-            config.nextSubclaimId(),
-            type,
-            text,
-            scoreBreakdown,
-            collectClusterIds(supportingClusters),
-            collectArtifactIds(supportingClusters),
-            collectSourceNamesFromClusters(supportingClusters),
-            collectSourceTypesFromClusters(supportingClusters),
-            collectProducerNamesFromClusters(supportingClusters),
-            caveat
-        );
+                config.nextSubclaimId(),
+                type,
+                text,
+                scoreBreakdown,
+                collectClusterIds(supportingClusters),
+                collectArtifactIds(supportingClusters),
+                collectSourceNamesFromClusters(supportingClusters),
+                collectSourceTypesFromClusters(supportingClusters),
+                collectProducerNamesFromClusters(supportingClusters),
+                caveat);
     }
 
     private ScoreBreakdown scoreSubclaim(SubclaimType type, List<Cluster> supportingClusters) {
         List<ScoreComponent> components = new ArrayList<>();
 
         components.add(new ScoreComponent(
-            "Base subclaim support",
-            0.35,
-            "A subclaim was generated because at least one supporting evidence cluster matched this template."
-        ));
+                "Base subclaim support",
+                0.35,
+                "A subclaim was generated because at least one supporting evidence cluster matched this template."));
 
         components.add(new ScoreComponent(
-            "Supporting cluster count",
-            calculateClusterCountBonus(supportingClusters),
-            "Additional supporting clusters increase evidentiary support, with a capped bonus."
-        ));
+                "Supporting cluster count",
+                calculateClusterCountBonus(supportingClusters),
+                "Additional supporting clusters increase evidentiary support, with a capped bonus."));
 
         components.add(new ScoreComponent(
-            "Artifact type specificity",
-            calculateArtifactTypeSpecificityBonus(type),
-            "More specific artifact categories provide stronger support than generic recovered strings."
-        ));
+                "Artifact type specificity",
+                calculateArtifactTypeSpecificityBonus(type),
+                "More specific artifact categories provide stronger support than generic recovered strings."));
 
         components.add(new ScoreComponent(
-            "Source diversity",
-            calculateSourceDiversityBonus(supportingClusters),
-            "Evidence recovered from multiple source names or source types provides stronger support than a single source."
-        ));
+                "Source diversity",
+                calculateSourceDiversityBonus(supportingClusters),
+                "Evidence recovered from multiple source names or source types provides stronger support than a single source."));
 
         components.add(new ScoreComponent(
-            "Producer diversity",
-            calculateProducerDiversityBonus(supportingClusters),
-            "Evidence produced by multiple extraction or detection modules provides stronger support than a single producer."
-        ));
+                "Producer diversity",
+                calculateProducerDiversityBonus(supportingClusters),
+                "Evidence produced by multiple extraction or detection modules provides stronger support than a single producer."));
 
         components.add(new ScoreComponent(
-            "Volatile-memory interpretation limitation",
-            -0.05,
-            "Volatile-memory artifacts can reflect cached state, residue, or automatic system behavior; this reduces overclaiming."
-        ));
+                "Volatile-memory interpretation limitation",
+                -0.05,
+                "Volatile-memory artifacts can reflect cached state, residue, or automatic system behavior; this reduces overclaiming."));
 
         return ScoreBreakdown.fromComponents(
-            components,
-            determineSubclaimOverclaimRisk(type),
-            "Subclaim score is derived from template match, artifact specificity, provenance diversity, and volatility-related limitations."
-        );
+                components,
+                determineSubclaimOverclaimRisk(type),
+                "Subclaim score is derived from template match, artifact specificity, provenance diversity, and volatility-related limitations.");
     }
 
     private double calculateClusterCountBonus(List<Cluster> clusters) {
@@ -425,248 +356,97 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
 
     private Hypothesis buildAccountHypothesis(List<Subclaim> subclaims, ScanConfig config) {
         List<Subclaim> selectedSubclaims = findSubclaims(
-            subclaims,
-            SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED
-        );
+                subclaims,
+                SubclaimType.ACCOUNT_IDENTIFIER_RECOVERED);
 
         if (selectedSubclaims.isEmpty()) {
             return null;
         }
 
         return buildHypothesisFromSubclaims(
-            "Possible account or communication trace",
-            "Supporting subclaims indicate the presence of account or communication-related identifiers.",
-            ActivityType.ACCOUNT_OR_COMMUNICATION,
-            selectedSubclaims,
-            List.of(
-                "Recovered account-like values may reflect user input, cached content, configuration fragments, or memory residue.",
-                "This hypothesis does not prove successful authentication or message access."
-            ),
-            List.of(
-                "The identifier may be present due to cached content, prior application state, copied text, or unrelated memory residue."
-            ),
-            List.of(
-                RuleId.HYPOTHESIS_ACCOUNT_OR_COMMUNICATION_TRACE
-            ),
-            config
-        );
+                "Possible account or communication trace",
+                "Supporting subclaims indicate the presence of account or communication-related identifiers.",
+                ActivityType.ACCOUNT_OR_COMMUNICATION,
+                selectedSubclaims,
+                List.of(
+                        "Recovered account-like values may reflect user input, cached content, configuration fragments, or memory residue.",
+                        "This hypothesis does not prove successful authentication or message access."),
+                List.of(
+                        "The identifier may be present due to cached content, prior application state, copied text, or unrelated memory residue."),
+                List.of(
+                        RuleId.HYPOTHESIS_ACCOUNT_OR_COMMUNICATION_TRACE),
+                config);
     }
 
     private Hypothesis buildWebActivityHypothesis(List<Subclaim> subclaims, ScanConfig config) {
         List<Subclaim> selectedSubclaims = findSubclaims(
-            subclaims,
-            SubclaimType.URL_RECOVERED
-        );
+                subclaims,
+                SubclaimType.URL_RECOVERED);
 
         if (selectedSubclaims.isEmpty()) {
             return null;
         }
 
         return buildHypothesisFromSubclaims(
-            "Possible web activity trace",
-            "Supporting subclaims indicate the presence of web-related activity indicators.",
-            ActivityType.WEB_ACTIVITY,
-            selectedSubclaims,
-            List.of(
-                "Recovered URLs may come from browser activity, cached content, logs, bookmarks, copied text, or preload data",
-                "Additional process, timestamp, or application context is needed for stronger session reconstruction."
-            ),
-            List.of(
-                "The URL may be present due to cached page content, application strings, bookmarks, or unrelated memory residue."
-            ),
-            List.of(
-                RuleId.HYPOTHESIS_WEB_ACTIVITY_TRACE
-            ),
-            config
-        );
+                "Possible web activity trace",
+                "Recovered URL-like values in supporting contexts may indicate web-related activity.",
+                ActivityType.WEB_ACTIVITY,
+                selectedSubclaims,
+                List.of(
+                        "URL recovery from volatile memory does not prove that a user visited the URL.",
+                        "Technical namespace, schema, documentation, and software-embedded URLs may appear in memory without direct browsing activity."),
+                List.of(
+                        "The URLs may originate from cached application resources, embedded documentation, package metadata, XML/SVG namespaces, or memory residue."),
+                List.of(RuleId.HYPOTHESIS_WEB_ACTIVITY_TRACE),
+                config);
     }
 
     private Hypothesis buildFileActivityHypothesis(List<Subclaim> subclaims, ScanConfig config) {
         List<Subclaim> selectedSubclaims = findSubclaims(
-            subclaims,
-            SubclaimType.FILE_PATH_RECOVERED
-        );
+                subclaims,
+                SubclaimType.FILE_PATH_RECOVERED);
 
         if (selectedSubclaims.isEmpty()) {
             return null;
         }
 
         return buildHypothesisFromSubclaims(
-            "Possible file activity trace",
-            "Supporting subclaims indicate the presence of file-system-related activity indicators.",
-            ActivityType.FILE_ACTIVITY,
-            selectedSubclaims,
-            List.of(
-                "File path artifacts can reflect recent access, application state, cached metadata, bookmarks, or system-generated references.",
-                "Additional timestamp, process, or content evidence is needed before claiming a specific file operation."
-            ),
-            List.of(
-                "The path may be present because of application indexing, recent-file metadata, shell history, or unrelated memory residue."
-            ),
-            List.of(
-                RuleId.HYPOTHESIS_FILE_ACTIVITY_TRACE
-            ),
-            config
-        );
+                "Possible file activity trace",
+                "Supporting subclaims indicate the presence of file-system-related activity indicators.",
+                ActivityType.FILE_ACTIVITY,
+                selectedSubclaims,
+                List.of(
+                        "File path artifacts can reflect recent access, application state, cached metadata, bookmarks, or system-generated references.",
+                        "Additional timestamp, process, or content evidence is needed before claiming a specific file operation."),
+                List.of(
+                        "The path may be present because of application indexing, recent-file metadata, shell history, or unrelated memory residue."),
+                List.of(
+                        RuleId.HYPOTHESIS_FILE_ACTIVITY_TRACE),
+                config);
     }
 
     private Hypothesis buildDeviceInteractionHypothesis(List<Subclaim> subclaims, ScanConfig config) {
         List<Subclaim> selectedSubclaims = findSubclaims(
-            subclaims,
-            SubclaimType.DEVICE_IDENTIFIER_RECOVERED
-        );
+                subclaims,
+                SubclaimType.DEVICE_IDENTIFIER_RECOVERED);
 
         if (selectedSubclaims.isEmpty()) {
             return null;
         }
 
         return buildHypothesisFromSubclaims(
-            "Possible external device interaction trace",
-            "Supporting subclaims indicate the presence of removable or external device indicators.",
-            ActivityType.DEVICE_INTERACTION,
-            selectedSubclaims,
-            List.of(
-                "Device identifiers may reflect enumeration, driver state, cached system metadata, or host-level artifacts.",
-                "This hypothesis does not prove that files were copied to or from the device."
-            ),
-            List.of(
-                "The device string may reflect prior host state, automatic enumeration, or unrelated cached hardware metadata."
-            ),
-            List.of(
-                RuleId.HYPOTHESIS_DEVICE_INTERACTION_TRACE
-            ),
-            config
-        );
-    }
-
-    private void addJavaFileActivityHypothesis(
-            List<Cluster> clusters,
-            List<Hypothesis> hypotheses,
-            ScanConfig config
-    ) {
-        List<Cluster> javaPathClusters = new ArrayList<>();
-        List<Cluster> javaSourceClusters = new ArrayList<>();
-        List<Cluster> javaAcquisitionClusters = new ArrayList<>();
-
-        for (Cluster cluster : clusters) {
-            String text = clusterText(cluster);
-
-            if (hasJavaFilePathEvidence(cluster, text)) {
-                javaPathClusters.add(cluster);
-            }
-
-            if (hasJavaSourceEvidence(text)) {
-                javaSourceClusters.add(cluster);
-            }
-
-            if (hasJavaAcquisitionContext(text)) {
-                javaAcquisitionClusters.add(cluster);
-            }
-        }
-
-        List<Subclaim> javaSubclaims = new ArrayList<>();
-
-        if (!javaPathClusters.isEmpty()) {
-            javaSubclaims.add(buildSubclaimFromClusters(
-                    SubclaimType.JAVA_FILE_PATH_RECOVERED,
-                    "Java source file path evidence was recovered from supporting clusters.",
-                    javaPathClusters,
-                    "A Java file path indicates memory presence of a Java-related file reference, not authorship, execution, or successful download by itself.",
-                    config
-            ));
-        }
-
-        if (!javaSourceClusters.isEmpty()) {
-            javaSubclaims.add(buildSubclaimFromClusters(
-                    SubclaimType.JAVA_SOURCE_CONTENT_RECOVERED,
-                    "Java source-code-like content was recovered from supporting clusters.",
-                    javaSourceClusters,
-                    "Recovered source-code text may reflect editing, viewing, downloading, cached content, or bundled examples.",
-                    config
-            ));
-        }
-
-        if (!javaAcquisitionClusters.isEmpty()) {
-            javaSubclaims.add(buildSubclaimFromClusters(
-                    SubclaimType.JAVA_WEB_DOWNLOAD_CONTEXT_RECOVERED,
-                    "Java-related web or download context was recovered from supporting clusters.",
-                    javaAcquisitionClusters,
-                    "Download or web context supports possible acquisition or browsing activity, but does not prove a completed download.",
-                    config
-            ));
-        }
-
-        if (javaSubclaims.size() < 2) {
-            return;
-        }
-
-        hypotheses.add(buildHypothesisFromSubclaims(
-                "Possible Java source file acquisition or editing activity",
-                "Multiple complementary memory artifacts support possible Java source file acquisition, viewing, or editing activity.",
-                ActivityType.FILE_ACTIVITY,
-                javaSubclaims,
+                "Possible external device interaction trace",
+                "Supporting subclaims indicate the presence of removable or external device indicators.",
+                ActivityType.DEVICE_INTERACTION,
+                selectedSubclaims,
                 List.of(
-                        "This hypothesis requires multiple complementary Java-related subclaims and should not be interpreted as proof of file execution.",
-                        "Recovered Java content may reflect viewing, editing, downloading, cached content, or example code."
-                ),
+                        "Device identifiers may reflect enumeration, driver state, cached system metadata, or host-level artifacts.",
+                        "This hypothesis does not prove that files were copied to or from the device."),
                 List.of(
-                        "Java strings may originate from bundled documentation, cached web content, application resources, or unrelated memory residue."
-                ),
-                List.of(RuleId.HYPOTHESIS_FILE_ACTIVITY_TRACE),
-                config
-        ));
-    }
-
-    private boolean hasJavaFilePathEvidence(Cluster cluster, String text) {
-        if (!containsAny(text, ".java")) {
-            return false;
-        }
-
-        return clusterContainsAnyType(
-                cluster,
-                ArtifactType.LINUX_FILE_PATH,
-                ArtifactType.WINDOWS_FILE_PATH,
-                ArtifactType.FILE_URI,
-                ArtifactType.URL
-        );
-    }
-
-    private boolean hasJavaSourceEvidence(String text) {
-        return containsAny(
-                text,
-                "public class ",
-                "class ",
-                "import java.",
-                "package ",
-                "public static void main",
-                "system.out.",
-                "private ",
-                "protected ",
-                "extends ",
-                "implements "
-        );
-    }
-
-    private boolean hasJavaAcquisitionContext(String text) {
-        return containsAny(
-                text,
-                ".java",
-                "download",
-                "downloads",
-                "attachment",
-                "content-disposition",
-                "application/octet-stream",
-                "text/x-java-source",
-                "browser",
-                "cache"
-        ) && containsAny(
-                text,
-                "http://",
-                "https://",
-                "file:///",
-                "/downloads/",
-                "\\downloads\\"
-        );
+                        "The device string may reflect prior host state, automatic enumeration, or unrelated cached hardware metadata."),
+                List.of(
+                        RuleId.HYPOTHESIS_DEVICE_INTERACTION_TRACE),
+                config);
     }
 
     private String clusterText(Cluster cluster) {
@@ -717,32 +497,30 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
     }
 
     private Hypothesis buildHypothesisFromSubclaims(
-        String title,
-        String claim,
-        ActivityType activityType,
-        List<Subclaim> subclaims,
-        List<String> caveats,
-        List<String> alternativeExplanations,
-        List<RuleId> ruleIds,
-        ScanConfig config
-    ) {
+            String title,
+            String claim,
+            ActivityType activityType,
+            List<Subclaim> subclaims,
+            List<String> caveats,
+            List<String> alternativeExplanations,
+            List<RuleId> ruleIds,
+            ScanConfig config) {
         ScoreBreakdown scoreBreakdown = scoreHypothesis(activityType, subclaims);
 
         return new Hypothesis(
-            config.nextHypothesisId(),
-            title,
-            claim,
-            activityType,
-            scoreBreakdown,
-            collectClusterIdsFromSubclaims(subclaims),
-            subclaims,
-            collectSourceNamesFromSubclaims(subclaims),
-            collectSourceTypesFromSubclaims(subclaims),
-            collectProducerNamesFromSubclaims(subclaims),
-            caveats,
-            alternativeExplanations,
-            ruleIds
-        );
+                config.nextHypothesisId(),
+                title,
+                claim,
+                activityType,
+                scoreBreakdown,
+                collectClusterIdsFromSubclaims(subclaims),
+                subclaims,
+                collectSourceNamesFromSubclaims(subclaims),
+                collectSourceTypesFromSubclaims(subclaims),
+                collectProducerNamesFromSubclaims(subclaims),
+                caveats,
+                alternativeExplanations,
+                ruleIds);
     }
 
     private ScoreBreakdown scoreHypothesis(ActivityType activityType, List<Subclaim> subclaims) {
@@ -751,44 +529,37 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         components.add(new ScoreComponent(
                 "Base hypothesis support",
                 0.15,
-                "A hypothesis was generated because at least one selected subclaim matched this activity-level template."
-        ));
+                "A hypothesis was generated because at least one selected subclaim matched this activity-level template."));
 
         components.add(new ScoreComponent(
                 "Subclaim support contribution",
                 calculateSubclaimSupportContribution(subclaims),
-                "The average support score of selected subclaims contributes to the activity-level hypothesis score."
-        ));
+                "The average support score of selected subclaims contributes to the activity-level hypothesis score."));
 
         components.add(new ScoreComponent(
                 "Subclaim coverage",
                 calculateSubclaimCoverageBonus(subclaims),
-                "Hypotheses supported by multiple subclaims receive a capped coverage bonus."
-        ));
+                "Hypotheses supported by multiple subclaims receive a capped coverage bonus."));
 
         components.add(new ScoreComponent(
                 "Source diversity",
                 calculateSubclaimSourceDiversityBonus(subclaims),
-                "Evidence represented across multiple source names or source types provides stronger activity-level support."
-        ));
+                "Evidence represented across multiple source names or source types provides stronger activity-level support."));
 
         components.add(new ScoreComponent(
                 "Producer diversity",
                 calculateSubclaimProducerDiversityBonus(subclaims),
-                "Hypotheses supported by evidence produced by multiple extraction or detection modules receive a small corroboration bonus."
-        ));
+                "Hypotheses supported by evidence produced by multiple extraction or detection modules receive a small corroboration bonus."));
 
         components.add(new ScoreComponent(
                 "Activity-level interpretation limitation",
                 -0.05,
-                "Activity-level hypotheses are interpretive and may overstate what volatile artifacts alone can prove."
-        ));
+                "Activity-level hypotheses are interpretive and may overstate what volatile artifacts alone can prove."));
 
         return ScoreBreakdown.fromComponents(
                 components,
                 determineHypothesisOverclaimRisk(activityType, subclaims),
-                "Hypothesis score is derived from selected subclaim strength, subclaim coverage, provenance diversity, and an activity-level interpretation penalty."
-        );
+                "Hypothesis score is derived from selected subclaim strength, subclaim coverage, provenance diversity, and an activity-level interpretation penalty.");
     }
 
     private double calculateSubclaimSupportContribution(List<Subclaim> subclaims) {
@@ -865,8 +636,7 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
 
     private OverclaimRisk determineHypothesisOverclaimRisk(
             ActivityType activityType,
-            List<Subclaim> subclaims
-    ) {
+            List<Subclaim> subclaims) {
         if (activityType == ActivityType.ACCOUNT_OR_COMMUNICATION) {
             return OverclaimRisk.HIGH;
         }
@@ -998,13 +768,13 @@ public class SimpleRuleHypothesisGenerator implements HypothesisGenerator{
         if (subclaim != null) {
             subclaims.add(subclaim);
         }
-    } 
+    }
 
     private void addIfPresent(List<Hypothesis> hypotheses, Hypothesis hypothesis) {
         if (hypothesis != null) {
             hypotheses.add(hypothesis);
         }
-    } 
+    }
 
     private static class ClusterBuckets {
         private final List<Cluster> emailClusters = new ArrayList<>();
