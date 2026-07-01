@@ -26,8 +26,8 @@ import edu.sjsu.vmact.rules.ArtifactSignalRules;
 
 public class MarkdownReporter implements Reporter {
     private static final int MAX_VALUE_LENGTH = 300;
-    private static final int MAX_CLUSTERS_PER_SUBCLAIM = 10;
-    private static final int MAX_ARTIFACTS_PER_CLUSTER = 5;
+    private static final int MAX_CLUSTERS_PER_SUBCLAIM = 5;
+    private static final int MAX_ARTIFACTS_PER_CLUSTER = 4;
     private static final int MAX_VALUE_SUMMARIES = 25;
 
     private static class ValueSummary {
@@ -114,7 +114,11 @@ public class MarkdownReporter implements Reporter {
             }
         }
 
-        writer.write("## Recovered Value Summary");
+        writer.write("## Prioritized Recovered Value Summary");
+        writer.newLine();
+        writer.newLine();
+        writer.write(
+                "Repeated values are ranked for review priority. This section is not exhaustive; see artifacts.csv for complete artifact output.");
         writer.newLine();
         writer.newLine();
 
@@ -417,9 +421,10 @@ public class MarkdownReporter implements Reporter {
             Cluster cluster = findClusterById(clusters, clusterId);
 
             if (i == MAX_CLUSTERS_PER_SUBCLAIM) {
-                int omittedCount = supportingClusterIds.size() - (i + 1);
+                int omittedCount = supportingClusterIds.size() - i;
                 writer.write("    - " + omittedCount
                         + " additional supporting cluster(s) omitted from this summary. See clusters.csv for full details.");
+                writer.newLine();
             } else if (cluster == null) {
                 writer.write("    - " + clusterId + " not found in current cluster list.");
                 writer.newLine();
@@ -454,20 +459,90 @@ public class MarkdownReporter implements Reporter {
         return formatConfidence(delta);
     }
 
+    private List<Artifact> derivedArtifacts(Cluster cluster) {
+        List<Artifact> artifacts = new ArrayList<>();
+
+        for (Artifact artifact : cluster.getArtifacts()) {
+            if (artifact.isDerived()) {
+                artifacts.add(artifact);
+            }
+        }
+
+        return artifacts;
+    }
+
+    private List<Artifact> rootArtifacts(Cluster cluster) {
+        List<Artifact> artifacts = new ArrayList<>();
+
+        for (Artifact artifact : cluster.getArtifacts()) {
+            if (!artifact.isDerived()) {
+                artifacts.add(artifact);
+            }
+        }
+
+        return artifacts;
+    }
+
+    private List<Artifact> displayOrderedArtifacts(Cluster cluster) {
+        List<Artifact> artifacts = new ArrayList<>();
+        artifacts.addAll(derivedArtifacts(cluster));
+        artifacts.addAll(rootArtifacts(cluster));
+        return artifacts;
+    }
+
+    private void writeKeyRecoveredValues(BufferedWriter writer, Cluster cluster) throws IOException {
+        List<Artifact> derivedArtifacts = derivedArtifacts(cluster);
+
+        writer.write("      **Key recovered values**");
+        writer.newLine();
+
+        if (derivedArtifacts.isEmpty()) {
+            writer.write("      - No derived values recorded.");
+            writer.newLine();
+            return;
+        }
+
+        int written = 0;
+        boolean hasMoreValues = false;
+
+        for (int i = 0; i < derivedArtifacts.size(); i++) {
+            Artifact artifact = derivedArtifacts.get(i);
+
+            if (written < MAX_ARTIFACTS_PER_CLUSTER) {
+                writer.write("      - `" + artifact.getType().name() + "` "
+                        + inlineCode(truncate(artifact.getValue(), MAX_VALUE_LENGTH)));
+                writer.newLine();
+                written++;
+            } else {
+                hasMoreValues = true;
+            }
+        }
+
+        if (hasMoreValues) {
+            writer.write("      - Additional recovered values omitted from this cluster summary.");
+            writer.newLine();
+        }
+    }
+
     private void writeClusterSummary(BufferedWriter writer, Cluster cluster) throws IOException {
-        writer.write("    - " + cluster.getId() + ": " + safe(cluster.getLabel()));
+        writer.write("    - Cluster `" + cluster.getId() + "` — " + safe(cluster.getLabel()));
         writer.newLine();
-        writer.write("      - Anchor: `" + cluster.getAnchorArtifactId() + "` " + inlineCode(cluster.getAnchorValue()));
         writer.newLine();
-        writer.write("      - Cluster types: `" + safe(cluster.getClusterTypes()) + "`");
+
+        writeKeyRecoveredValues(writer, cluster);
+        writer.newLine();
+
+        writer.write("      **Evidence details**");
         writer.newLine();
         writer.write("      - Support score: `" + formatConfidence(cluster.getConfidence()) + "`");
+        writer.newLine();
+        writer.write("      - Cluster types: `" + safe(cluster.getClusterTypes()) + "`");
         writer.newLine();
         writer.write("      - Sources: " + inlineList(cluster.getSourceNames()));
         writer.newLine();
         writer.write("      - Source types: " + inlineSourceTypes(cluster.getSourceTypes()));
         writer.newLine();
-        writer.write("      - Producer: " + inlineList(cluster.getProducerNames()));
+        writer.write("      - Producers: " + inlineList(cluster.getProducerNames()));
         writer.newLine();
         writer.write("      - Rules: " + inlineRuleIds(cluster.getRuleIds()));
         writer.newLine();
@@ -477,47 +552,63 @@ public class MarkdownReporter implements Reporter {
             writer.newLine();
         }
 
-        writer.write("      - Artifacts:");
         writer.newLine();
 
-        List<Artifact> clusterArtifacts = cluster.getArtifacts();
+        writer.write("      **Supporting artifacts**");
+        writer.newLine();
 
-        for (int i = 0; i <= MAX_ARTIFACTS_PER_CLUSTER && i < clusterArtifacts.size(); i++) {
+        List<Artifact> clusterArtifacts = displayOrderedArtifacts(cluster);
+
+        int written = 0;
+        boolean hasMoreArtifacts = false;
+
+        for (int i = 0; i < clusterArtifacts.size(); i++) {
             Artifact artifact = clusterArtifacts.get(i);
 
-            if (i == MAX_ARTIFACTS_PER_CLUSTER) {
-                int omittedCount = clusterArtifacts.size() - (i + 1);
-                writer.write("    - " + omittedCount
-                        + " additional supporting cluster(s) omitted from this summary. See clusters.csv for full details.");
-            } else {
+            if (written < MAX_ARTIFACTS_PER_CLUSTER) {
                 writeArtifactSummary(writer, artifact);
+                written++;
+            } else {
+                hasMoreArtifacts = true;
             }
         }
-    }
 
-    private void writeArtifactSummary(BufferedWriter writer, Artifact artifact) throws IOException {
-        writer.write("        - " + artifact.getId()
-                + " `" + artifact.getType().name() + "`"
-                + " offset=`" + artifact.getOffset() + "`"
-                + " offsetHex=`" + artifact.getOffsetHex() + "`"
-                + " encoding=`" + safe(artifact.getEncoding()) + "`"
-                + " producer=`" + safe(artifact.getProducerName()) + "`");
-        writer.newLine();
-
-        if (artifact.isDerived()) {
-            writer.write("          - Parent artifact: `" + safe(artifact.getParentArtifactId()) + "`");
+        if (hasMoreArtifacts) {
+            writer.write(
+                    "      - Additional supporting artifact(s) omitted from this cluster summary. See artifacts.csv for full details.");
             writer.newLine();
         }
 
-        writer.write("          - Source: `" + safe(artifact.getSourceName()) + "` / `"
+        writer.newLine();
+    }
+
+    private void writeArtifactSummary(BufferedWriter writer, Artifact artifact) throws IOException {
+        writer.write("      - `" + artifact.getId() + "` `" + artifact.getType().name() + "`");
+        writer.newLine();
+
+        writer.write("        - Value: " + inlineCode(truncate(artifact.getValue(), MAX_VALUE_LENGTH)));
+        writer.newLine();
+
+        if (artifact.isDerived()) {
+            writer.write("        - Parent artifact: `" + safe(artifact.getParentArtifactId()) + "`");
+            writer.newLine();
+        }
+
+        writer.write("        - Offset: `" + artifact.getOffsetHex() + "`");
+        writer.newLine();
+
+        writer.write("        - Source: `" + safe(artifact.getSourceName()) + "` / `"
                 + artifact.getSourceType().name() + "`");
         writer.newLine();
 
-        writer.write("          - Value: " + inlineCode(truncate(artifact.getValue(), MAX_VALUE_LENGTH)));
+        writer.write("        - Encoding: `" + safe(artifact.getEncoding()) + "`");
+        writer.newLine();
+
+        writer.write("        - Producer: `" + safe(artifact.getProducerName()) + "`");
         writer.newLine();
 
         if (artifact.getContext() != null && !artifact.getContext().isBlank()) {
-            writer.write("          - Context: " + inlineCode(truncate(artifact.getContext(), MAX_VALUE_LENGTH)));
+            writer.write("        - Context: " + inlineCode(truncate(artifact.getContext(), MAX_VALUE_LENGTH)));
             writer.newLine();
         }
     }
